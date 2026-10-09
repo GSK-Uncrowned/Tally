@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tally</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+<style>
+*{box-sizing:border-box}
+:root{--bg:#fff;--surface:#fff;--ink:#000;--muted:#6b6b6b;--line:#e4e4e4;--hl:#f0f0f0;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--surface:#0b0b0b;--ink:#fff;--muted:#9a9a9a;--line:#2a2a2a;--hl:#1a1a1a}}
+:root[data-theme="dark"]{--bg:#000;--surface:#0b0b0b;--ink:#fff;--muted:#9a9a9a;--line:#2a2a2a;--hl:#1a1a1a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+h1{font-size:1.6rem;margin:0 0 4px;font-weight:600;letter-spacing:-.02em}
+h2{font-size:1rem;margin:28px 0 10px;font-weight:600}
+.muted{color:var(--muted);font-size:.9rem}
+main{padding:20px 16px 150px;max-width:760px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav .brand{display:none}
+nav button{flex:1;border:0;background:none;padding:16px 4px;color:var(--muted);font-weight:500}
+nav button[aria-current=page]{color:var(--ink);font-weight:700}
+.day{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.85rem;margin:26px 0 12px}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--line)}
+.panel{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:8px;background:var(--surface)}
+.panel .r{text-align:right;white-space:nowrap}
+.panel{flex-wrap:wrap;align-items:flex-start;transition:border-color .2s,box-shadow .2s}
+.panel .main{flex:1;min-width:0}
+.trash{flex:none;width:40px;height:40px;margin-left:6px;display:grid;place-items:center;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--muted)}
+.trash:hover{color:#d92d20;border-color:#d92d20}
+.panel.warn{border-color:#d92d20;box-shadow:0 0 0 3px rgba(217,45,32,.2),0 0 22px rgba(217,45,32,.45);animation:glow 1.4s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:0 0 0 3px rgba(217,45,32,.3),0 0 32px rgba(217,45,32,.7)}}
+.confirm{flex:0 0 100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid rgba(217,45,32,.45);padding-top:12px;margin-top:4px;font-size:.9rem}
+.confirm p{margin:0;flex:1 1 180px;display:flex;gap:8px;align-items:center}
+.danger{background:#d92d20;color:#fff;border:0;border-radius:10px;padding:8px 14px;font-weight:600}
+.fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:14px 22px;font-weight:600;z-index:3}
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 14px}
+.btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.bar{display:flex;gap:8px;align-items:center;margin:16px 0}
+.bar .sp{flex:1;text-align:center;font-weight:600}
+.big{font-size:2.8rem;font-weight:600;letter-spacing:-.03em;margin:8px 0 0}
+.sizes{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);margin-top:6px}
+.sizes:first-of-type{margin-top:10px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dow{text-align:center;color:var(--muted);font-size:.75rem}
+.cell{min-height:58px;border:1px solid var(--line);border-radius:10px;padding:4px 6px;font-size:.8rem;display:flex;flex-direction:column;justify-content:space-between}
+.cell.has{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.cell.off{border-color:transparent}
+.wk{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+.cal{grid-template-columns:46px repeat(7,1fr)}
+button.cell,.wbtn{font:inherit;background:var(--bg);color:var(--ink);text-align:left;cursor:pointer;transition:border-color .15s,transform .1s}
+button.cell:hover,.wbtn:hover{border-color:var(--ink)}
+button.cell:active,.wbtn:active{transform:scale(.96)}
+.wbtn{border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;justify-content:space-between;padding:4px 6px;font-size:.72rem;color:var(--muted)}
+.wbtn b{font-size:.78rem;color:inherit}
+.wbtn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.cell.wsel{background:var(--hl);border-color:var(--muted)}
+.cell.has.wsel{background:var(--ink)}
+.cell.dsel{outline:2px solid var(--ink);outline-offset:2px}
+.wbtn{align-items:center;justify-content:center;gap:3px}
+.wbtn svg{transition:transform .2s}
+.wbtn:hover svg{transform:translateX(2px)}
+.wbtn.on svg,.wbtn.on:hover svg{transform:rotate(90deg)}
+.wbtn{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:none;color:var(--muted);align-self:center;justify-self:center}
+.wbtn:hover{background:var(--hl);color:var(--ink)}
+.wbtn.on,.wbtn.on:hover{background:var(--ink);color:var(--bg)}
+.sew{border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:12px;background:var(--surface)}
+.sew-head{display:flex;align-items:center;gap:12px;padding-bottom:12px}
+.sew .main{flex:1;min-width:0}
+.sew .r,.slog .r{text-align:right;white-space:nowrap}
+.avatar{flex:none;width:40px;height:40px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-weight:600}
+.sal{font-size:1.4rem;letter-spacing:-.02em}
+.slog{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.mini-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+.mini{display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .15s,transform .1s}
+.mini:hover{border-color:var(--ink)}
+.mini:active{transform:scale(.97)}
+.mini.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mini .top{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0;margin-bottom:6px}
+.mini .top span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini strong{font-size:1.15rem;letter-spacing:-.02em}
+.mini .muted{color:inherit;opacity:.65;font-size:.8rem}
+.avatar.sm{width:26px;height:26px;font-size:.8rem}
+.mini.on .avatar{background:var(--bg);color:var(--ink)}
+.sizes{align-items:center;gap:12px;padding:10px 0}
+.sizes:first-of-type{margin-top:0}
+.sizes .title{margin:0}
+.sizes .r{text-align:right;white-space:nowrap}
+.panel>.muted{margin-bottom:4px}
+.grp{margin-top:30px}
+.sup-head{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px;font-size:1.25rem;font-weight:700;letter-spacing:-.01em}
+.sup-head span{font-size:.95rem;font-weight:500}
+.kids{margin-left:5px;padding-left:18px;border-left:2px solid var(--line)}
+.kids .slog{border-top:0;padding:8px 0}
+.title{display:flex;align-items:center;flex-wrap:wrap;gap:2px 8px;margin-bottom:2px}
+.tag{padding:0 10px;border:1px solid var(--line);border-radius:99px;font-size:.78rem;line-height:1.6;color:var(--muted)}
+.panel.sum{display:block;padding:12px 14px;margin:8px 0 0}
+.sum .sizes{padding:6px 0}
+.sum>strong{display:block;margin-bottom:2px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 4px}
+.stat{display:flex;flex-direction:column}
+.stat b{font-size:1.25rem;letter-spacing:-.02em}
+.grp.sm{margin-top:22px}
+.grp.sm>.sup-head{font-size:1.05rem}
+.empty{color:var(--muted);padding:32px 0;text-align:center}
+dialog{border:1px solid var(--line);border-radius:18px;padding:20px;width:min(440px,calc(100vw - 32px));background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+label{display:block;font-size:.85rem;color:var(--muted);margin:12px 0 4px}
+.in{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.primary{background:var(--ink);color:var(--bg);border:0;border-radius:10px;padding:10px 18px;font-weight:600}
+#err{color:var(--ink);font-size:.9rem;margin:10px 0 0;min-height:1.2em}
+@media(min-width:800px){
+.app{display:grid;grid-template-columns:180px 1fr}
+nav{position:sticky;top:0;height:100vh;flex-direction:column;border-top:0;border-right:1px solid var(--line);padding:24px 12px;gap:4px;align-self:start}
+nav .brand{display:block;font-weight:700;font-size:1.2rem;padding:0 12px 20px}
+nav button{flex:none;text-align:left;padding:10px 12px;border-radius:10px}
+nav button[aria-current=page]{background:var(--ink);color:var(--bg)}
+main{padding:32px 40px 80px}
+.fab{bottom:32px;right:32px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="brand">Tally</div>
+    <button data-view="log">Log</button>
+    <button data-view="sewers">Salary</button>
+    <button data-view="suppliers">Suppliers</button>
+    <button data-view="finance">Finance</button>
+  </nav>
+  <main id="main"></main>
+</div>
+
+<dialog id="dlg">
+  <h2 style="margin-top:0">Add entry</h2>
+  <label for="f-date">Date</label><input class="in" id="f-date" type="date">
+  <label for="f-item">Item</label><input class="in" id="f-item" list="l-item" placeholder="Plain t-shirt">
+  <div class="two">
+    <div><label for="f-color">Color</label><input class="in" id="f-color" list="l-color" placeholder="White"></div>
+    <div><label for="f-size">Size</label><input class="in" id="f-size" list="l-size" placeholder="Medium"></div>
+  </div>
+  <label for="f-client">Who it came from</label><input class="in" id="f-client" list="l-client" placeholder="Marvin">
+  <div class="two">
+    <div><label for="f-sewer">Sewn by</label><input class="in" id="f-sewer" list="l-sewer" placeholder="Ana"></div>
+    <div><label for="f-pay">Sewer pay per piece (₱)</label><input class="in" id="f-pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+  </div>
+  <div class="two">
+    <div><label for="f-qty">Quantity</label><input class="in" id="f-qty" type="number" min="1" inputmode="numeric"></div>
+    <div><label for="f-price">Price per piece (₱)</label><input class="in" id="f-price" type="number" min="0" step="0.01" inputmode="decimal"></div>
+  </div>
+  <datalist id="l-item"></datalist><datalist id="l-color"></datalist><datalist id="l-size"></datalist><datalist id="l-client"></datalist><datalist id="l-sewer"></datalist>
+  <p id="err" role="alert"></p>
+  <div class="actions"><button class="btn" data-act="cancel">Cancel</button><button class="primary" data-act="save">Save entry</button></div>
+</dialog>
+
+<script>
+// ---- Date helpers ----
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const t = new Date(d); t.setDate(t.getDate() + n); return t; };
+const weekStart = d => { const t = parse(ymd(d)); return addDays(t, -((t.getDay() + 6) % 7)); }; // Monday
+const short = d => d.toLocaleDateString('en-PH', {month:'short', day:'numeric'});
+const peso = n => {
+  n = Math.round(n * 100) / 100;
+  return '₱' + (Number.isInteger(n) ? n.toLocaleString('en-PH') : n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cmp = e => e.qty * e.price;
+const k = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(n);
+
+// ---- Data layer (later: replace these two functions with Supabase calls) ----
+const KEY = 'tally-entries-v2';
+// [days ago, item, color, size, qty, from, price, sewer, sewer pay]
+const DEMO = [
+  [0,'Plain t-shirt','White','Medium',200,'Marvin',4,'Ana',1.5],[0,'Plain t-shirt','White','Small',400,'Marvin',4,'Ben',1.5],
+  [0,'Polo shirt','Navy','Large',60,'Aling Nena',35,'Carla',12],[1,'Plain t-shirt','White','Large',600,'Marvin',4,'Ana',1.5],
+  [1,'Apron','Black','Medium',80,'Ate Joy',20,'Dino',7],[1,'Pillowcase','Cream','Standard',150,'Mang Lito',15,'Elmer',5],
+  [2,'Polo shirt','Navy','Medium',80,'Aling Nena',35,'Carla',12],[2,'School uniform','Blue','Small',40,'Mang Lito',90,'Elmer',30],
+  [2,'Plain t-shirt','Black','Medium',300,'Marvin',4,'Ben',1.5],[3,'Apron','Red','Large',50,'Ate Joy',20,'Dino',7],
+  [3,'Barong','Ivory','Medium',6,'Aling Nena',350,'Carla',120],[4,'Plain t-shirt','Gray','Small',250,'Marvin',4,'Ana',1.5],
+  [5,'Curtains','Beige','Standard',24,'Mang Lito',120,'Elmer',40],[5,'Plain t-shirt','White','Medium',350,'Marvin',4,'Ben',1.5],
+  [6,'Polo shirt','Maroon','Large',45,'Aling Nena',35,'Carla',12],[8,'Plain t-shirt','Black','Large',500,'Marvin',4,'Ana',1.5],
+  [8,'Apron','Green','Medium',70,'Ate Joy',20,'Dino',7],[9,'School uniform','Blue','Medium',55,'Mang Lito',90,'Elmer',30],
+  [10,'Plain t-shirt','White','Small',420,'Marvin',4,'Ben',1.5],[10,'Polo shirt','Navy','Small',35,'Aling Nena',35,'Carla',12],
+  [11,'Pillowcase','White','Standard',200,'Mang Lito',15,'Elmer',5],[12,'Plain t-shirt','Gray','Large',380,'Marvin',4,'Ana',1.5],
+  [13,'Apron','Black','Large',90,'Ate Joy',20,'Dino',7],[15,'Barong','Cream','Large',8,'Aling Nena',350,'Carla',120],
+  [16,'Plain t-shirt','White','Medium',450,'Marvin',4,'Ben',1.5],[17,'Curtains','Gray','Standard',30,'Mang Lito',120,'Elmer',40],
+  [19,'Plain t-shirt','Black','Small',300,'Marvin',4,'Ana',1.5],[20,'School uniform','Blue','Large',60,'Mang Lito',90,'Dino',30],
+  [21,'Polo shirt','Navy','Medium',50,'Aling Nena',35,'Carla',12],
+  [0,'School uniform','Blue','Medium',25,'Mang Lito',90,'Ana',30],[1,'Polo shirt','Navy','Small',40,'Aling Nena',35,'Ana',12],
+  [2,'Pillowcase','White','Standard',120,'Mang Lito',15,'Ana',5],[2,'Apron','Green','Large',45,'Ate Joy',20,'Ana',7],
+  [9,'Polo shirt','Maroon','Medium',30,'Aling Nena',35,'Ana',12],[10,'Apron','Red','Medium',60,'Ate Joy',20,'Ana',7]
+];
+const DEMO_V = 2; // bump this when DEMO changes so old demo entries refresh
+function demoEntries() {
+  return DEMO.map((r, i) => ({id: 9e12 + i, date: ymd(addDays(new Date(), -r[0])), item: r[1], color: r[2], size: r[3],
+    qty: r[4], client: r[5], price: r[6], sewer: r[7], pay: r[8], demo: DEMO_V}));
+}
+function seed() { return demoEntries(); }
+function loadEntries() {
+  try { const s = localStorage.getItem(KEY); if (s) { const list = JSON.parse(s).map(e => ({sewer:'', pay:0, ...e})); return list.some(e => e.demo && e.demo !== DEMO_V) ? list.filter(e => !e.demo).concat(demoEntries()) : list; } } catch (e) {}
+  return seed();
+}
+function saveEntries() { try { localStorage.setItem(KEY, JSON.stringify(entries)); } catch (e) {} }
+
+// ---- State ----
+let entries = loadEntries();
+let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
+month.setDate(1);
+
+const TRASH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
+const WARN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d92d20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2L12 3zM12 10v5M12 18v.5"/></svg>';
+
+const CHEV = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+// ---- Log ----
+function dayLabel(s) {
+  const t = ymd(new Date());
+  if (s === t) return 'Today';
+  if (s === ymd(addDays(new Date(), -1))) return 'Yesterday';
+  return parse(s).toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'});
+}
+function entryPanel(e, del, noClient) {
+  const w = del && pendingDel == e.id;
+  return `<div class="panel ${w ? 'warn' : ''}">
+    <div class="main"><div class="title"><strong>${esc(noClient ? e.item : e.client)}</strong>${e.sewer ? `<span class="tag">by ${esc(e.sewer)}</span>` : ''}</div>
+      <div class="muted">${noClient ? '' : esc(e.item) + ', '}${esc(e.color)}, ${esc(e.size)}</div></div>
+    <div class="r"><strong>${peso(cmp(e))}</strong><div class="muted">${e.qty} × ${peso(e.price)}</div></div>
+    ${del ? `<button class="trash" data-act="ask" data-id="${e.id}" aria-label="Delete this entry">${TRASH}</button>` : ''}
+    ${w ? `<div class="confirm" role="alert"><p>${WARN}<span>Delete this entry? This can't be undone.</span></p>
+      <button class="btn" data-act="keep">Keep it</button>
+      <button class="danger" data-act="del" data-id="${e.id}">Delete entry</button></div>` : ''}
+  </div>`;
+}
+function weekLabel(ws) {
+  const diff = Math.round((weekStart(new Date()) - ws) / 604800000);
+  if (diff === 0) return 'This week';
+  if (diff === 1) return 'Last week';
+  if (diff === -1) return 'Next week';
+  return short(ws) + ' to ' + short(addDays(ws, 6));
+}
+function logView() {
+  const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
+  const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
+  const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
+  let out = `<h1>Log</h1>
+    <button class="btn" data-act="demo">${entries.some(e => e.demo) ? 'Clear demo data' : 'Load demo data'}</button>
+    <div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
+      <button class="btn" data-act="lw" data-d="-1" aria-label="Previous week">‹</button>
+      <button class="btn" data-act="lw" data-d="1" aria-label="Next week">›</button></div>`, last = '';
+  list.forEach(e => {
+    if (e.date !== last) { out += `<div class="day">${dayLabel(e.date)}</div>`; last = e.date; }
+    out += entryPanel(e, true);
+  });
+  if (!list.length) out += '<p class="empty">Nothing logged this week.</p>';
+  return out + '<button class="fab" data-act="add">Add entry</button>';
+}
+
+// ---- Finance ----
+function sewerBlock(list) {
+  const pay = {};
+  list.forEach(e => {
+    if (!e.sewer) return;
+    const p = pay[e.sewer] = pay[e.sewer] || {qty:0, amt:0};
+    p.qty += e.qty; p.amt += e.qty * e.pay;
+  });
+  const names = Object.keys(pay).sort();
+  return {
+    paid: names.reduce((s, n) => s + pay[n].amt, 0),
+    html: names.map(n => `<div class="panel"><div class="main"><strong>${esc(n)}</strong><div class="muted">${pay[n].qty.toLocaleString()} pieces</div></div>
+      <div class="r"><strong>${peso(pay[n].amt)}</strong><div class="muted">salary</div></div></div>`).join('') || '<p class="muted">No sewers recorded.</p>'
+  };
+}
+function stats(income, pay) {
+  const cell = (l, v) => `<div class="stat"><span class="muted">${l}</span><b>${peso(v)}</b></div>`;
+  return `<div class="stats">${cell('Income', income)}${cell('Sewers', pay)}${cell('Profit', income - pay)}</div>`;
+}
+function supplierTree(list, inner) {
+  const by = group(list, 'client');
+  return Object.keys(by).sort().map(c => `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(by[c].reduce((t, x) => t + cmp(x), 0))}</span></div><div class="kids">${inner(by[c])}</div></div>`).join('');
+}
+function detailView() {
+  if (!sel) return '<p class="empty">Tap a week on the left, or any day, to see what was sewn.</p>';
+  const week = sel.t === 'week', s = parse(sel.d), end = ymd(addDays(s, 6));
+  const list = week ? entries.filter(e => e.date >= sel.d && e.date <= end) : entries.filter(e => e.date === sel.d);
+  const title = week ? `Week of ${short(s)} to ${short(addDays(s, 6))}` : s.toLocaleDateString('en-PH', {weekday:'long', month:'long', day:'numeric'});
+  const income = list.reduce((a, e) => a + cmp(e), 0), sw = sewerBlock(list);
+  return `<h2 style="margin-top:32px;font-size:1.2rem">${title}</h2>${stats(income, sw.paid)}` +
+    (supplierTree(list, week ? sewerTree : l => l.map(e => entryPanel(e, false, true)).join(''))
+      || `<p class="empty">Nothing ${week ? 'was sewn this week' : 'was logged this day'}.</p>`);
+}
+function financeView() {
+  const y = month.getFullYear(), m = month.getMonth(), days = new Date(y, m + 1, 0).getDate();
+  const byDay = {};
+  entries.forEach(e => byDay[e.date] = (byDay[e.date] || 0) + cmp(e));
+  const payDay = {};
+  entries.forEach(e => payDay[e.date] = (payDay[e.date] || 0) + e.qty * e.pay);
+  const weekTotal = ws => { let t = 0; for (let i = 0; i < 7; i++) t += byDay[ymd(addDays(ws, i))] || 0; return t; };
+  let cells = '<div class="dow">Week</div>' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  let monthTotal = 0, monthPay = 0;
+  const first = new Date(y, m, 1), last = new Date(y, m, days);
+  for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
+    const wk = ymd(ws), wsel = sel && sel.t === 'week' && sel.d === wk;
+    cells += `<button class="wbtn ${wsel ? 'on' : ''}" data-act="week" data-d="${wk}" title="See this week" aria-label="Week of ${short(ws)}">${CHEV}</button>`;
+    for (let i = 0; i < 7; i++) {
+      const dt = addDays(ws, i), key = ymd(dt);
+      if (dt.getMonth() !== m) { cells += '<div class="cell off"></div>'; continue; }
+      const v = byDay[key] || 0; monthTotal += v; monthPay += payDay[key] || 0;
+      cells += `<button class="cell ${v ? 'has' : ''} ${wsel ? 'wsel' : ''} ${sel && sel.t === 'day' && sel.d === key ? 'dsel' : ''}" data-act="day" data-d="${key}"><span>${dt.getDate()}</span><b>${v ? k(v) : ''}</b></button>`;
+    }
+  }
+  return `<h1>Finance</h1>
+    <div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
+      <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
+      <button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
+    ${stats(monthTotal, monthPay)}
+    <div class="cal" style="margin-top:20px">${cells}</div>
+    <div id="detail">${detailView()}</div>`;
+}
+
+// ---- Salary ----
+function miniCard(act, name, big, small, on) {
+  return `<button class="mini ${on ? 'on' : ''}" data-act="${act}" data-n="${esc(name)}">
+    <span class="top"><span class="avatar sm">${esc(name[0].toUpperCase())}</span><span>${esc(name)}</span></span>
+    <strong>${big}</strong><span class="muted">${small}</span></button>`;
+}
+function group(list, f) {
+  const by = {};
+  list.forEach(x => (by[x[f]] = by[x[f]] || []).push(x));
+  return by;
+}
+function sewersView() {
+  const s = swWeek, e = addDays(s, 6), a = ymd(s), b = ymd(e);
+  const by = group(entries.filter(x => x.date >= a && x.date <= b && x.sewer), 'sewer');
+  const cur = a === ymd(weekStart(new Date()));
+  const total = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
+  let detail = '';
+  if (swSel) {
+    const rows = by[swSel] || [], sup = group(rows, 'client');
+    detail = rows.length
+      ? `<p class="muted" style="margin-top:24px">${pcs(swSel).toLocaleString()} pieces, ${peso(total(swSel))} salary this week</p>` +
+        Object.keys(sup).sort().map(c => {
+          const l = sup[c].sort((p, q) => q.date.localeCompare(p.date) || q.id - p.id);
+          return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
+            l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
+              <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
+        }).join('')
+      : '<p class="empty">No logs this week.</p>';
+  }
+  return `<h1>Salary</h1>
+    <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(e)}${cur ? ' (this week)' : ''}</span>
+      <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
+      <button class="btn" data-act="sw" data-d="1" aria-label="Next week">›</button></div>
+    <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', swSel === n)).join('')}</div>` +
+    (Object.keys(by).length ? '' : '<p class="empty">No sewers were logged this week.</p>') + `<div id="detail">${detail}</div>`;
+}
+
+// ---- Suppliers (the people the cloth comes from) ----
+const textCmp = (a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'});
+const sizeRank = z => { const i = ['xs', 'small', 'medium', 'large', 'xl', 'xxl'].indexOf(z.toLowerCase()); return i < 0 ? 9 : i; };
+// Groups one supplier's entries per sewer, then lists items sorted by name (same names end up together)
+function sewerTree(list) {
+  const by = group(list, 'sewer');
+  return Object.keys(by).sort((a, b) => (!a - !b) || textCmp(a, b)).map(n => {
+    const rows = {};
+    by[n].forEach(e => {
+      const k = [e.item, e.color, e.size, e.price].join('|').toLowerCase();
+      const r = rows[k] = rows[k] || {item:e.item, color:e.color, size:e.size, price:e.price, qty:0};
+      r.qty += e.qty;
+    });
+    const l = Object.values(rows).sort((a, b) => textCmp(a.item, b.item) || textCmp(a.color, b.color) || sizeRank(a.size) - sizeRank(b.size));
+    const total = l.reduce((t, r) => t + r.qty * r.price, 0);
+    return `<div class="grp sm"><div class="sup-head"><strong>${esc(n || 'No sewer')}</strong><span>${peso(total)}</span></div><div class="kids">` +
+      l.map(r => `<div class="slog"><div><div>${esc(r.item)}</div><div class="muted">${esc(r.color)}, ${esc(r.size)}</div></div>
+        <div class="r"><strong>${peso(r.qty * r.price)}</strong><div class="muted">${r.qty.toLocaleString()} × ${peso(r.price)}</div></div></div>`).join('') + '</div></div>';
+  }).join('');
+}
+function weekBar(s, act) {
+  const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
+  return `<div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
+    <button class="btn" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
+    <button class="btn" data-act="${act}" data-d="1" aria-label="Next week">›</button></div>`;
+}
+function suppliersView() {
+  const a = ymd(spWeek), b = ymd(addDays(spWeek, 6));
+  const by = group(entries.filter(x => x.date >= a && x.date <= b && x.client), 'client');
+  const total = n => by[n].reduce((t, x) => t + cmp(x), 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
+  const detail = spSel ? `<h2 style="margin-top:28px;font-size:1.2rem">${esc(spSel)}</h2>` + (by[spSel] ? sewerTree(by[spSel]) : '<p class="empty">Nothing from them this week.</p>') : '';
+  return `<h1>Suppliers</h1>${weekBar(spWeek, 'sp')}
+    <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', spSel === n)).join('')}</div>` +
+    (Object.keys(by).length ? '' : '<p class="empty">No suppliers logged this week.</p>') + `<div id="detail">${detail}</div>`;
+}
+
+// ---- Render + events ----
+const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView};
+function render() {
+  document.getElementById('main').innerHTML = views[view]();
+  document.querySelectorAll('nav [data-view]').forEach(b => {
+    if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+}
+const $ = id => document.getElementById(id);
+function openDialog() {
+  const uniq = f => [...new Set(entries.map(e => e[f]))].map(v => `<option value="${esc(v)}">`).join('');
+  $('l-item').innerHTML = uniq('item'); $('l-color').innerHTML = uniq('color'); $('l-client').innerHTML = uniq('client'); $('l-sewer').innerHTML = uniq('sewer');
+  $('l-size').innerHTML = ['Small', 'Medium', 'Large', 'XL'].map(v => `<option value="${v}">`).join('');
+  ['item', 'color', 'size', 'client', 'sewer', 'pay', 'qty', 'price'].forEach(f => $('f-' + f).value = '');
+  $('f-date').value = ymd(new Date()); $('err').textContent = '';
+  $('dlg').showModal();
+}
+function saveEntry() {
+  const e = {id: Date.now(), date: $('f-date').value, item: $('f-item').value.trim(), color: $('f-color').value.trim() || 'Any',
+    size: $('f-size').value.trim() || 'Any', client: $('f-client').value.trim() || 'Unknown', sewer: $('f-sewer').value.trim(), pay: Number($('f-pay').value) || 0, qty: Number($('f-qty').value), price: Number($('f-price').value)};
+  if (!e.date || !e.item || !(e.qty > 0) || !(e.price >= 0) || $('f-price').value === '') {
+    $('err').textContent = 'Add a date, an item name, a quantity above 0, and a price per piece.'; return;
+  }
+  entries.push(e); logWeek = weekStart(parse(e.date)); saveEntries(); $('dlg').close(); render();
+}
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-act],[data-view]');
+  if (!b) return;
+  const d = b.dataset;
+  if (d.act !== 'ask') pendingDel = null;
+  if (d.view) { view = d.view; }
+  else if (d.act === 'add') { openDialog(); return; }
+  else if (d.act === 'cancel') { $('dlg').close(); return; }
+  else if (d.act === 'save') { saveEntry(); return; }
+  else if (d.act === 'demo') { entries = entries.some(e => e.demo) ? entries.filter(e => !e.demo) : entries.concat(demoEntries()); saveEntries(); }
+  else if (d.act === 'ask') pendingDel = d.id;
+  else if (d.act === 'del') { entries = entries.filter(e => e.id != d.id); saveEntries(); }
+  else if (d.act === 'week' || d.act === 'day') {
+    const t = d.act, same = sel && sel.t === t && sel.d === d.d;
+    sel = same ? null : {t, d: d.d};
+  }
+  else if (d.act === 'lw') logWeek = addDays(logWeek, 7 * Number(d.d));
+  else if (d.act === 'sw') swWeek = addDays(swWeek, 7 * Number(d.d));
+  else if (d.act === 'sewer') swSel = swSel === d.n ? null : d.n;
+  else if (d.act === 'supplier') spSel = spSel === d.n ? null : d.n;
+  else if (d.act === 'sp') spWeek = addDays(spWeek, 7 * Number(d.d));
+  else if (d.act === 'mshift') { month = new Date(month.getFullYear(), month.getMonth() + Number(d.d), 1); sel = null; }
+  render();
+  if ($('detail') && ['week', 'day', 'sewer', 'supplier'].includes(d.act)) $('detail').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+render();
+</script>
+</body>
+</html>
