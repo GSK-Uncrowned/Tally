@@ -5,6 +5,12 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 :root[data-theme="dark"]{--bg:#000;--surface:#0b0b0b;--ink:#fff;--muted:#9a9a9a;--line:#2a2a2a;--hl:#1a1a1a}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+#mesh-background{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.24;animation:mesh-breathe 18s ease-in-out infinite}
+.app{position:relative;z-index:1}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) #mesh-background{opacity:.3}}
+@keyframes mesh-breathe{0%,100%{opacity:.18}50%{opacity:.3}}
+@media(prefers-color-scheme:dark){@keyframes mesh-breathe{0%,100%{opacity:.23}50%{opacity:.38}}}
+@media(prefers-reduced-motion:reduce){#mesh-background{animation:none;opacity:.24}}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
@@ -24,10 +30,10 @@ main{width:100%;padding:48px 20px 150px;max-width:760px}
 .profile-popover strong{padding:8px 10px 10px;border-bottom:1px solid var(--line)}
 .menu-btn{border:0;border-radius:9px;background:none;padding:8px;text-align:left;color:inherit}
 .menu-btn:hover{background:var(--hl)}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav{position:fixed;bottom:12px;left:12px;right:12px;display:flex;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.12);padding:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom,0px));z-index:5;backdrop-filter:blur(14px)}
 nav .brand{display:none}
-nav button{flex:1;border:0;background:none;padding:16px 4px;color:var(--muted);font-weight:500}
-nav button[aria-current=page]{color:var(--ink);font-weight:700}
+nav button{flex:1;border:0;background:none;border-radius:13px;padding:13px 4px;color:var(--muted);font-weight:500;transition:background .15s,color .15s}
+nav button[aria-current=page]{background:var(--ink);color:var(--bg);font-weight:700}
 .day{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.85rem;margin:26px 0 12px}
 .day::before,.day::after{content:"";flex:1;height:1px;background:var(--line)}
 .panel{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:8px;background:var(--surface)}
@@ -51,6 +57,7 @@ nav button[aria-current=page]{color:var(--ink);font-weight:700}
 .sizes:first-of-type{margin-top:10px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .dow{text-align:center;color:var(--muted);font-size:.75rem}
+.cal-label{text-align:center;color:var(--muted);font-size:.65rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
 .cell{min-height:58px;border:1px solid var(--line);border-radius:10px;padding:4px 6px;font-size:.8rem;display:flex;flex-direction:column;justify-content:space-between}
 .cell.has{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .cell.off{border-color:transparent}
@@ -122,7 +129,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin:12px 0 4px}
 #err{color:var(--ink);font-size:.9rem;margin:10px 0 0;min-height:1.2em}
 @media(min-width:800px){
 .app{display:grid;grid-template-columns:180px 1fr}
-nav{position:sticky;top:0;height:100vh;flex-direction:column;border-top:0;border-right:1px solid var(--line);padding:24px 12px;gap:4px;align-self:start}
+nav{position:sticky;top:16px;height:calc(100vh - 32px);flex-direction:column;border-radius:20px;padding:20px 12px;gap:4px;align-self:start;margin:16px 0 16px 16px}
 nav .brand{display:block;font-weight:700;font-size:1.35rem;letter-spacing:-.04em;padding:0 12px 28px}
 nav button{flex:none;text-align:left;padding:10px 12px;border-radius:10px}
 nav button[aria-current=page]{background:var(--ink);color:var(--bg)}
@@ -131,7 +138,7 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:56px 40px 80px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 [hidden]{display:none!important}
-#auth{position:fixed;inset:0;z-index:30;background:var(--bg);display:grid;place-items:center;padding:24px}
+#auth{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--bg) 82%,transparent);display:grid;place-items:center;padding:24px}
 .authbox{width:min(420px,100%);padding:40px}
 .app-skeleton{padding-top:8px}
 .skeleton-heading,.skeleton-subheading,.skeleton-toolbar,.skeleton-day,.skeleton-card,.topbar-skeleton,nav.loading button,nav.loading .brand{background:linear-gradient(90deg,var(--hl) 25%,var(--line) 50%,var(--hl) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:12px}
@@ -167,5 +174,7 @@ nav.loading{pointer-events:none}
 @media(max-width:799px){.topbar{padding-bottom:0}.profile-name{display:none}}
 @media(max-width:500px){
   .cal{grid-template-columns:32px repeat(7,minmax(0,1fr));gap:3px}
-  .cell{min-height:42px;padding:4px;font-size:.72rem}
+  .cell{min-height:42px;padding:4px;font-size:.65rem}
+  button.cell span,button.cell b{font-size:.65rem}
 }
+@media(max-width:799px){.fab{bottom:88px}}

@@ -61,6 +61,80 @@ const WARN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke
 
 const CHEV = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
+function initMeshBackground() {
+  const canvas = $('mesh-background');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let points = [], width = 0, height = 0, frame = 0, last = 0;
+  const resize = () => {
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const count = Math.max(42, Math.min(128, Math.round(width * height / 12500)));
+    points = Array.from({length: count}, () => {
+      const x = Math.random() * width, y = Math.random() * height;
+      return {
+        x, y, homeX: x, homeY: y,
+        driftX: 18 + Math.random() * 28, driftY: 18 + Math.random() * 28,
+        phase: Math.random() * Math.PI * 2,
+        speed: .0001 + Math.random() * .00006
+      };
+    });
+    const cornerPoints = [
+      [0, 0, 1, 1], [width, 0, -1, 1],
+      [0, height, 1, -1], [width, height, -1, -1]
+    ];
+    cornerPoints.forEach(([x, y, dx, dy]) => {
+      points.push({x, y, homeX: x, homeY: y, driftX: 0, driftY: 0, phase: 0, speed: 0, anchor: true});
+      for (let i = 0; i < 3; i++) {
+        const distance = 45 + Math.random() * 100;
+        const pointX = x + dx * distance, pointY = y + dy * distance;
+        points.push({
+          x: pointX, y: pointY, homeX: pointX, homeY: pointY,
+          driftX: 14 + Math.random() * 22, driftY: 14 + Math.random() * 22,
+          phase: Math.random() * Math.PI * 2,
+          speed: .0001 + Math.random() * .00006
+        });
+      }
+    });
+    draw();
+  };
+  const draw = (time = 0) => {
+    last = time;
+    ctx.clearRect(0, 0, width, height);
+    const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#fff';
+    for (const point of points) {
+      if (!reducedMotion && !point.anchor) {
+        point.x = Math.max(0, Math.min(width, point.homeX + Math.sin(time * point.speed + point.phase) * point.driftX));
+        point.y = Math.max(0, Math.min(height, point.homeY + Math.cos(time * point.speed * .87 + point.phase) * point.driftY));
+      }
+    }
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const a = points[i], b = points[j], dx = a.x - b.x, dy = a.y - b.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 165) continue;
+        ctx.strokeStyle = ink;
+        ctx.globalAlpha = .5 * (1 - distance / 165);
+        ctx.lineWidth = .75;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (!reducedMotion) frame = requestAnimationFrame(draw);
+  };
+  window.addEventListener('resize', resize, {passive: true});
+  resize();
+}
+
 // ---- Log ----
 function dayLabel(s) {
   const t = ymd(new Date());
@@ -143,7 +217,7 @@ function financeView() {
   const payDay = {};
   entries.forEach(e => payDay[e.date] = (payDay[e.date] || 0) + e.qty * e.pay);
   const weekTotal = ws => { let t = 0; for (let i = 0; i < 7; i++) t += byDay[ymd(addDays(ws, i))] || 0; return t; };
-  let cells = '<div class="dow">Week</div>' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  let cells = '<div class="cal-label">Wk</div>' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
   let monthTotal = 0, monthPay = 0;
   const first = new Date(y, m, 1), last = new Date(y, m, days);
   for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
@@ -482,4 +556,5 @@ async function boot() {
   const {data} = await sb.auth.getSession();
   if (data.session) await enter(); else showAuth();
 }
+initMeshBackground();
 boot();
