@@ -16,7 +16,10 @@
     <button data-view="suppliers">Suppliers</button>
     <button data-view="finance">Finance</button>
   </nav>
-  <main id="main"></main>
+  <div class="workspace">
+    <header class="topbar" id="topbar" hidden></header>
+    <main id="main"></main>
+  </div>
 </div>
 
 <dialog id="dlg">
@@ -28,8 +31,8 @@
     <div><label for="f-size">Size</label><input class="in" id="f-size" list="l-size" placeholder="Medium"></div>
   </div>
   <label for="f-client">Who it came from</label><input class="in" id="f-client" list="l-client" placeholder="Marvin">
-  <div class="two" id="owner-fields">
-    <div><label for="f-sewer">Sewn by</label><input class="in" id="f-sewer" list="l-sewer" placeholder="Ana"><select class="in" id="f-sewer-id" hidden></select></div>
+  <div class="two" id="sewer-fields">
+    <div><label for="f-sewer">Sewn by</label><input class="in" id="f-sewer" placeholder="Your name"></div>
     <div><label for="f-pay">Sewer pay per piece (₱)</label><input class="in" id="f-pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
   </div>
   <div class="two">
@@ -43,7 +46,8 @@
 
 <div id="auth" hidden>
   <div class="authbox">
-    <h1>Tally</h1>
+    <div class="auth-brand">Tally</div>
+    <h1 id="a-title">Welcome back</h1>
     <p class="muted" id="a-sub">Log in to continue</p>
     <label for="a-name" id="a-name-l" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
     <label for="a-email">Email</label><input class="in" id="a-email" type="email" autocomplete="email">

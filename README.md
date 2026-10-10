@@ -10,14 +10,14 @@ Built for a real family sewing business. Work in progress.
 - **Salary:** a compact card for each sewer showing the week's salary. Tap a card to see that sewer's logs, grouped by supplier.
 - **Suppliers:** a weekly total for each supplier. Tap one to see the work broken down by sewer, with items sorted by name.
 - **Finance:** a month calendar showing income per day. Tap a week or a day to see its breakdown by supplier. It shows income, what was paid to sewers, and profit.
-- **Demo data:** a button on the Log tab loads sample entries so you can try everything, and clears them again.
+- **Demo data:** a button on the Log tab previews sample entries so you can try everything without saving them to the cloud, and exits back to your records.
 
 It uses a black-and-white minimalist design, works on phones and desktops, and follows the system light or dark theme.
 
 ## Tech
 
 - Plain HTML, CSS, and JavaScript in a single file. No framework and no build step.
-- Data is currently saved in the browser (localStorage), so it stays on one device.
+- When Supabase is configured, data is saved online so signed-in users can share it. Without Supabase configuration, data is saved in the browser (localStorage).
 
 ## Run it
 
@@ -25,8 +25,7 @@ Open `index.html` in any browser.
 
 ## Roadmap
 
-- Save data online with Supabase so everyone sees the same records
-- Sign up and log in, so each sewer's entries are tagged automatically
+- Add shared sewer/profile management
 - Edit existing entries
 - Fewer fields per entry, with saved pay rates
 - Pick suppliers and sewers from a list so names stay consistent

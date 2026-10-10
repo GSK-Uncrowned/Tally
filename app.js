@@ -52,7 +52,7 @@ function saveEntries() { try { localStorage.setItem(KEY, JSON.stringify(entries)
 // Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally with demo data
 const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR');
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-let entries = [], me = null, people = [];
+let entries = [], me = null, people = [], demoMode = false;
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
 month.setDate(1);
 
@@ -91,8 +91,7 @@ function logView() {
   const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
   const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
-  let out = `<h1>Log</h1>
-    ${cloud ? `<button class="btn" data-act="logout">Log out, ${esc(me.name)}</button>` : `<button class="btn" data-act="demo">${entries.some(e => e.demo) ? 'Clear demo data' : 'Load demo data'}</button>`}
+  let out = `<h1 class="page-title">Log</h1>
     <div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
       <button class="btn" data-act="lw" data-d="-1" aria-label="Previous week">‹</button>
       <button class="btn" data-act="lw" data-d="1" aria-label="Next week">›</button></div>`, last = '';
@@ -157,7 +156,7 @@ function financeView() {
       cells += `<button class="cell ${v ? 'has' : ''} ${wsel ? 'wsel' : ''} ${sel && sel.t === 'day' && sel.d === key ? 'dsel' : ''}" data-act="day" data-d="${key}"><span>${dt.getDate()}</span><b>${v ? k(v) : ''}</b></button>`;
     }
   }
-  return `<h1>Finance</h1>
+  return `<h1 class="page-title">Finance</h1>
     <div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
       <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
       <button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
@@ -195,7 +194,7 @@ function sewersView() {
         }).join('')
       : '<p class="empty">No logs this week.</p>';
   }
-  return `<h1>Salary</h1>
+  return `<h1 class="page-title">Salary</h1>
     <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(e)}${cur ? ' (this week)' : ''}</span>
       <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
       <button class="btn" data-act="sw" data-d="1" aria-label="Next week">›</button></div>
@@ -234,17 +233,52 @@ function suppliersView() {
   const by = group(entries.filter(x => x.date >= a && x.date <= b && x.client), 'client');
   const total = n => by[n].reduce((t, x) => t + cmp(x), 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
   const detail = spSel ? `<h2 style="margin-top:28px;font-size:1.2rem">${esc(spSel)}</h2>` + (by[spSel] ? sewerTree(by[spSel]) : '<p class="empty">Nothing from them this week.</p>') : '';
-  return `<h1>Suppliers</h1>${weekBar(spWeek, 'sp')}
+  return `<h1 class="page-title">Suppliers</h1>${weekBar(spWeek, 'sp')}
     <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', spSel === n)).join('')}</div>` +
     (Object.keys(by).length ? '' : '<p class="empty">No suppliers logged this week.</p>') + `<div id="detail">${detail}</div>`;
 }
 
 // ---- Render + events ----
 const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView};
+function renderTopbar() {
+  const topbar = $('topbar');
+  if (!cloud || !me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
+  topbar.hidden = false;
+  topbar.innerHTML = `<details class="profile-menu">
+    <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
+    <div class="profile-popover">
+      <strong>${esc(me.name)}</strong>
+      <button class="menu-btn" data-act="demo">${demoMode ? 'Exit demo mode' : 'Try demo data'}</button>
+      <button class="menu-btn" data-act="logout">Log out</button>
+    </div>
+  </details>`;
+}
+function renderLoading() {
+  const nav = document.querySelector('nav');
+  nav.classList.add('loading');
+  nav.setAttribute('aria-busy', 'true');
+  const topbar = $('topbar');
+  topbar.hidden = false;
+  topbar.innerHTML = '<div class="topbar-skeleton"></div>';
+  $('main').innerHTML = `<div class="app-skeleton" aria-live="polite" aria-label="Loading your workspace">
+    <div class="skeleton-heading"></div>
+    <div class="skeleton-subheading"></div>
+    <div class="skeleton-toolbar"></div>
+    <div class="skeleton-day"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-day"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+  </div>`;
+}
 function render() {
   document.getElementById('main').innerHTML = views[view]();
+  renderTopbar();
+  const nav = document.querySelector('nav');
+  nav.classList.remove('loading');
+  nav.removeAttribute('aria-busy');
   document.querySelectorAll('nav [data-view]').forEach(b => {
-    b.hidden = cloud && !isOwner() && ['suppliers', 'finance'].includes(b.dataset.view);
     if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
 }
@@ -255,25 +289,38 @@ function openDialog() {
   $('l-size').innerHTML = ['Small', 'Medium', 'Large', 'XL'].map(v => `<option value="${v}">`).join('');
   ['item', 'color', 'size', 'client', 'sewer', 'pay', 'qty', 'price'].forEach(f => $('f-' + f).value = '');
   $('f-date').value = ymd(new Date()); $('err').textContent = '';
-  $('owner-fields').hidden = !isOwner();
-  if (cloud && isOwner()) {
-    $('f-sewer').hidden = true; $('f-sewer-id').hidden = false;
-    $('f-sewer-id').innerHTML = people.map(p => `<option value="${p.id}" ${p.id === me.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  $('sewer-fields').hidden = false;
+  if (cloud) {
+    $('f-sewer').value = me.name;
+    $('f-sewer').readOnly = true;
+  } else {
+    $('f-sewer').readOnly = false;
   }
   $('dlg').showModal();
 }
+async function toggleDemo() {
+  if (demoMode) {
+    demoMode = false;
+    if (cloud) await refresh();
+    else entries = loadEntries();
+    render();
+    return;
+  }
+  demoMode = true;
+  entries = demoEntries();
+  render();
+}
 async function saveEntry() {
-  const owner = isOwner();
   const e = {date: $('f-date').value, item: $('f-item').value.trim(), color: $('f-color').value.trim() || 'Any',
     size: $('f-size').value.trim() || 'Any', client: $('f-client').value.trim() || 'Unknown',
-    sewer: owner ? $('f-sewer').value.trim() : '', pay: owner ? Number($('f-pay').value) || 0 : 0,
+    sewer: $('f-sewer').value.trim(), pay: Number($('f-pay').value) || 0,
     qty: Number($('f-qty').value), price: Number($('f-price').value)};
   if (!e.date || !e.item || !(e.qty > 0) || !(e.price >= 0) || $('f-price').value === '') {
     $('err').textContent = 'Add a date, an item name, a quantity above 0, and a price per piece.'; return;
   }
   if (cloud) {
     const {error} = await sb.from('entries').insert({date: e.date, item: e.item, color: e.color, size: e.size, client: e.client,
-      qty: e.qty, price: e.price, pay: e.pay, sewer_id: owner ? $('f-sewer-id').value : me.id});
+      qty: e.qty, price: e.price, pay: e.pay, sewer_id: me.id});
     if (error) { $('err').textContent = error.message; return; }
     await refresh();
   } else { e.id = Date.now(); entries.push(e); saveEntries(); }
@@ -289,7 +336,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'add') { openDialog(); return; }
   else if (d.act === 'cancel') { $('dlg').close(); return; }
   else if (d.act === 'save') { saveEntry(); return; }
-  else if (d.act === 'demo') { entries = entries.some(e => e.demo) ? entries.filter(e => !e.demo) : entries.concat(demoEntries()); saveEntries(); }
+  else if (d.act === 'demo') { toggleDemo(); return; }
   else if (d.act === 'ask') pendingDel = d.id;
   else if (d.act === 'del') { removeEntry(d.id); return; }
   else if (d.act === 'auth-go') { authGo(); return; }
@@ -306,16 +353,22 @@ document.addEventListener('click', ev => {
   else if (d.act === 'sp') spWeek = addDays(spWeek, 7 * Number(d.d));
   else if (d.act === 'mshift') { month = new Date(month.getFullYear(), month.getMonth() + Number(d.d), 1); sel = null; }
   render();
-  if ($('detail') && ['week', 'day', 'sewer', 'supplier'].includes(d.act)) $('detail').scrollIntoView({behavior:'smooth', block:'nearest'});
 });
 // ---- Cloud (Supabase) ----
-const isOwner = () => !cloud || (me && me.role === 'owner');
-const canDelete = () => isOwner();
+const canDelete = () => true;
 let authMode = 'login';
-function showAuth(msg) { $('auth').hidden = false; $('a-err').textContent = msg || ''; }
+function showAuth(msg) {
+  const nav = document.querySelector('nav');
+  nav.classList.remove('loading');
+  nav.removeAttribute('aria-busy');
+  $('topbar').hidden = true;
+  $('auth').hidden = false;
+  $('a-err').textContent = msg || '';
+}
 function setAuthMode(m) {
   authMode = m;
   $('a-name').hidden = $('a-name-l').hidden = m !== 'signup';
+  $('a-title').textContent = m === 'signup' ? 'Create your account' : 'Welcome back';
   $('a-go').textContent = m === 'signup' ? 'Sign up' : 'Log in';
   $('a-switch').textContent = m === 'signup' ? 'Have an account? Log in' : 'No account? Sign up';
   $('a-sub').textContent = m === 'signup' ? 'Create your account' : 'Log in to continue';
@@ -328,11 +381,13 @@ async function refresh() {
     price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : ''}));
 }
 async function enter() {
+  $('auth').hidden = true;
+  renderLoading();
   const {data: u} = await sb.auth.getUser();
-  const {data: p, error} = await sb.from('profiles').select('id, name, role').eq('id', u.user.id).single();
+  const {data: p, error} = await sb.from('profiles').select('id, name').eq('id', u.user.id).single();
   if (error || !p) { await sb.auth.signOut(); showAuth('Could not load your profile. Did you run supabase.sql?'); return; }
   me = p;
-  if (isOwner()) { const r = await sb.from('profiles').select('id, name').order('name'); people = r.data || []; }
+  people = [p];
   await refresh();
   $('auth').hidden = true; view = 'log'; render();
 }
@@ -341,12 +396,18 @@ async function authGo() {
   if (!email || password.length < 6 || (authMode === 'signup' && !name)) {
     $('a-err').textContent = authMode === 'signup' ? 'Enter your name, an email, and a password of 6 or more characters.' : 'Enter your email and password.'; return;
   }
-  const res = authMode === 'signup' ? await sb.auth.signUp({email, password, options: {data: {name}}}) : await sb.auth.signInWithPassword({email, password});
-  if (res.error) { $('a-err').textContent = res.error.message; return; }
-  if (!res.data.session) { $('a-err').textContent = 'Check your email to confirm your account, then log in.'; return; }
-  await enter();
+  $('auth').hidden = true;
+  renderLoading();
+  try {
+    const res = authMode === 'signup' ? await sb.auth.signUp({email, password, options: {data: {name}}}) : await sb.auth.signInWithPassword({email, password});
+    if (res.error) { showAuth(res.error.message); return; }
+    if (!res.data.session) { showAuth('Check your email to confirm your account, then log in.'); return; }
+    await enter();
+  } catch (e) {
+    showAuth('Could not connect. Check your connection and try again.');
+  }
 }
-async function logout() { await sb.auth.signOut(); me = null; entries = []; people = []; setAuthMode('login'); showAuth(); }
+async function logout() { await sb.auth.signOut(); me = null; entries = []; people = []; demoMode = false; setAuthMode('login'); showAuth(); renderTopbar(); }
 async function removeEntry(id) {
   if (cloud) {
     const {error} = await sb.from('entries').delete().eq('id', id);
@@ -357,6 +418,7 @@ async function removeEntry(id) {
 }
 async function boot() {
   if (!cloud) { entries = loadEntries(); render(); return; }
+  renderLoading();
   const {data} = await sb.auth.getSession();
   if (data.session) await enter(); else showAuth();
 }
