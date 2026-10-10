@@ -375,7 +375,9 @@ function setAuthMode(m) {
   $('a-err').textContent = '';
 }
 async function refresh() {
-  const {data, error} = await sb.from('entries').select('*, profiles(name)').order('date', {ascending: false});
+  const {data, error} = await sb.from('entries')
+    .select('id, date, item, color, size, qty, client, price, pay, sewer_id, profiles(name)')
+    .order('date', {ascending: false});
   if (error) { alert('Could not load entries: ' + error.message); return; }
   entries = data.map(r => ({id: r.id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
     price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : ''}));
@@ -385,7 +387,11 @@ async function enter() {
   renderLoading();
   const {data: u} = await sb.auth.getUser();
   const {data: p, error} = await sb.from('profiles').select('id, name').eq('id', u.user.id).single();
-  if (error || !p) { await sb.auth.signOut(); showAuth('Could not load your profile. Did you run supabase.sql?'); return; }
+  if (error || !p) {
+    await sb.auth.signOut();
+    showAuth('Could not load your profile. Make sure your Supabase profiles table and signup trigger are configured.');
+    return;
+  }
   me = p;
   people = [p];
   await refresh();
@@ -409,12 +415,24 @@ async function authGo() {
 }
 async function logout() { await sb.auth.signOut(); me = null; entries = []; people = []; demoMode = false; setAuthMode('login'); showAuth(); renderTopbar(); }
 async function removeEntry(id) {
+  const removed = entries.find(e => e.id == id);
+  if (!removed) return;
+
+  entries = entries.filter(e => e.id != id);
+  pendingDel = null;
+  render();
+
   if (cloud) {
     const {error} = await sb.from('entries').delete().eq('id', id);
-    if (error) { alert(error.message); return; }
-    await refresh();
-  } else { entries = entries.filter(e => e.id != id); saveEntries(); }
-  pendingDel = null; render();
+    if (error) {
+      entries.push(removed);
+      entries.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+      render();
+      alert('Could not delete entry: ' + error.message);
+    }
+  } else {
+    saveEntries();
+  }
 }
 async function boot() {
   if (!cloud) { entries = loadEntries(); render(); return; }
