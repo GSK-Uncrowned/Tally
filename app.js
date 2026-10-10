@@ -285,17 +285,10 @@ function render() {
 const $ = id => document.getElementById(id);
 function openDialog() {
   const uniq = f => [...new Set(entries.map(e => e[f]))].map(v => `<option value="${esc(v)}">`).join('');
-  $('l-item').innerHTML = uniq('item'); $('l-color').innerHTML = uniq('color'); $('l-client').innerHTML = uniq('client'); $('l-sewer').innerHTML = uniq('sewer');
+  $('l-item').innerHTML = uniq('item'); $('l-color').innerHTML = uniq('color'); $('l-client').innerHTML = uniq('client');
   $('l-size').innerHTML = ['Small', 'Medium', 'Large', 'XL'].map(v => `<option value="${v}">`).join('');
-  ['item', 'color', 'size', 'client', 'sewer', 'pay', 'qty', 'price'].forEach(f => $('f-' + f).value = '');
+  ['item', 'color', 'size', 'client', 'pay', 'qty', 'price'].forEach(f => $('f-' + f).value = '');
   $('f-date').value = ymd(new Date()); $('err').textContent = '';
-  $('sewer-fields').hidden = false;
-  if (cloud) {
-    $('f-sewer').value = me.name;
-    $('f-sewer').readOnly = true;
-  } else {
-    $('f-sewer').readOnly = false;
-  }
   $('dlg').showModal();
 }
 async function toggleDemo() {
@@ -310,12 +303,29 @@ async function toggleDemo() {
   entries = demoEntries();
   render();
 }
+function validateRequired(ids) {
+  let first = null;
+  ids.forEach(id => {
+    const field = $(id);
+    const invalid = !field.value.trim() || !field.checkValidity();
+    field.classList.toggle('invalid', invalid);
+    if (invalid && !first) first = field;
+  });
+  if (first) {
+    first.focus();
+    return false;
+  }
+  return true;
+}
 async function saveEntry() {
+  if (!validateRequired(['f-date', 'f-item', 'f-color', 'f-size', 'f-client', 'f-pay', 'f-qty', 'f-price'])) return;
   const e = {date: $('f-date').value, item: $('f-item').value.trim(), color: $('f-color').value.trim() || 'Any',
     size: $('f-size').value.trim() || 'Any', client: $('f-client').value.trim() || 'Unknown',
-    sewer: $('f-sewer').value.trim(), pay: Number($('f-pay').value) || 0,
+    sewer: cloud ? me.name : '', pay: Number($('f-pay').value) || 0,
     qty: Number($('f-qty').value), price: Number($('f-price').value)};
   if (!e.date || !e.item || !(e.qty > 0) || !(e.price >= 0) || $('f-price').value === '') {
+    if (!(e.qty > 0)) $('f-qty').classList.add('invalid');
+    if (!(e.price >= 0) || $('f-price').value === '') $('f-price').classList.add('invalid');
     $('err').textContent = 'Add a date, an item name, a quantity above 0, and a price per piece.'; return;
   }
   if (cloud) {
@@ -354,6 +364,19 @@ document.addEventListener('click', ev => {
   else if (d.act === 'mshift') { month = new Date(month.getFullYear(), month.getMonth() + Number(d.d), 1); sel = null; }
   render();
 });
+document.addEventListener('input', ev => {
+  if (ev.target.matches('.in')) ev.target.classList.remove('invalid');
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || ev.target.tagName !== 'INPUT') return;
+  if (ev.target.closest('#auth')) {
+    ev.preventDefault();
+    authGo();
+  } else if (ev.target.closest('#dlg')) {
+    ev.preventDefault();
+    saveEntry();
+  }
+});
 // ---- Cloud (Supabase) ----
 const canDelete = () => true;
 let authMode = 'login';
@@ -365,12 +388,24 @@ function showAuth(msg) {
   $('auth').hidden = false;
   $('a-err').textContent = msg || '';
 }
+function showAuthError(message, ids = []) {
+  showAuth(message);
+  ids.forEach(id => $(id).classList.add('invalid'));
+  const box = document.querySelector('.authbox');
+  box.classList.remove('shake');
+  void box.offsetWidth;
+  box.classList.add('shake');
+}
 function setAuthMode(m) {
   authMode = m;
   $('a-name').hidden = $('a-name-l').hidden = m !== 'signup';
+  $('a-name').required = m === 'signup';
+  $('a-name').classList.remove('invalid');
   $('a-title').textContent = m === 'signup' ? 'Create your account' : 'Welcome back';
   $('a-go').textContent = m === 'signup' ? 'Sign up' : 'Log in';
-  $('a-switch').textContent = m === 'signup' ? 'Have an account? Log in' : 'No account? Sign up';
+  $('a-switch').innerHTML = m === 'signup'
+    ? 'Already have an account? <strong>Log in</strong>'
+    : "Don't have an account? <strong>Sign up</strong>";
   $('a-sub').textContent = m === 'signup' ? 'Create your account' : 'Log in to continue';
   $('a-err').textContent = '';
 }
@@ -399,14 +434,21 @@ async function enter() {
 }
 async function authGo() {
   const email = $('a-email').value.trim(), password = $('a-pass').value, name = $('a-name').value.trim();
+  const authFields = authMode === 'signup' ? ['a-name', 'a-email', 'a-pass'] : ['a-email', 'a-pass'];
+  if (!validateRequired(authFields)) return;
   if (!email || password.length < 6 || (authMode === 'signup' && !name)) {
+    if (password.length < 6) $('a-pass').classList.add('invalid');
     $('a-err').textContent = authMode === 'signup' ? 'Enter your name, an email, and a password of 6 or more characters.' : 'Enter your email and password.'; return;
   }
   $('auth').hidden = true;
   renderLoading();
   try {
     const res = authMode === 'signup' ? await sb.auth.signUp({email, password, options: {data: {name}}}) : await sb.auth.signInWithPassword({email, password});
-    if (res.error) { showAuth(res.error.message); return; }
+    if (res.error) {
+      const fields = authMode === 'login' ? ['a-email', 'a-pass'] : ['a-email'];
+      showAuthError(res.error.message, fields);
+      return;
+    }
     if (!res.data.session) { showAuth('Check your email to confirm your account, then log in.'); return; }
     await enter();
   } catch (e) {

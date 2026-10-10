@@ -24,22 +24,19 @@
 
 <dialog id="dlg">
   <h2 style="margin-top:0">Add entry</h2>
-  <label for="f-date">Date</label><input class="in" id="f-date" type="date">
-  <label for="f-item">Item</label><input class="in" id="f-item" list="l-item" placeholder="Plain t-shirt">
+  <label class="required" for="f-date">Date</label><input class="in" id="f-date" type="date" required>
+  <label class="required" for="f-item">Item</label><input class="in" id="f-item" list="l-item" placeholder="Plain t-shirt" required>
   <div class="two">
-    <div><label for="f-color">Color</label><input class="in" id="f-color" list="l-color" placeholder="White"></div>
-    <div><label for="f-size">Size</label><input class="in" id="f-size" list="l-size" placeholder="Medium"></div>
+    <div><label class="required" for="f-color">Color</label><input class="in" id="f-color" list="l-color" placeholder="White" required></div>
+    <div><label class="required" for="f-size">Size</label><input class="in" id="f-size" list="l-size" placeholder="Medium" required></div>
   </div>
-  <label for="f-client">Who it came from</label><input class="in" id="f-client" list="l-client" placeholder="Marvin">
-  <div class="two" id="sewer-fields">
-    <div><label for="f-sewer">Sewn by</label><input class="in" id="f-sewer" placeholder="Your name"></div>
-    <div><label for="f-pay">Sewer pay per piece (₱)</label><input class="in" id="f-pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
-  </div>
+  <label class="required" for="f-client">Who it came from</label><input class="in" id="f-client" list="l-client" placeholder="Marvin" required>
+  <label class="required" for="f-pay">Sewer pay per piece (₱)</label><input class="in" id="f-pay" type="number" min="0" step="0.01" inputmode="decimal" required>
   <div class="two">
-    <div><label for="f-qty">Quantity</label><input class="in" id="f-qty" type="number" min="1" inputmode="numeric"></div>
-    <div><label for="f-price">Price per piece (₱)</label><input class="in" id="f-price" type="number" min="0" step="0.01" inputmode="decimal"></div>
+  <div><label class="required" for="f-qty">Quantity</label><input class="in" id="f-qty" type="number" min="1" inputmode="numeric" required></div>
+  <div><label class="required" for="f-price">Price per piece (₱)</label><input class="in" id="f-price" type="number" min="0" step="0.01" inputmode="decimal" required></div>
   </div>
-  <datalist id="l-item"></datalist><datalist id="l-color"></datalist><datalist id="l-size"></datalist><datalist id="l-client"></datalist><datalist id="l-sewer"></datalist>
+  <datalist id="l-item"></datalist><datalist id="l-color"></datalist><datalist id="l-size"></datalist><datalist id="l-client"></datalist>
   <p id="err" role="alert"></p>
   <div class="actions"><button class="btn" data-act="cancel">Cancel</button><button class="primary" data-act="save">Save entry</button></div>
 </dialog>
@@ -49,12 +46,12 @@
     <div class="auth-brand">Tally</div>
     <h1 id="a-title">Welcome back</h1>
     <p class="muted" id="a-sub">Log in to continue</p>
-    <label for="a-name" id="a-name-l" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
-    <label for="a-email">Email</label><input class="in" id="a-email" type="email" autocomplete="email">
-    <label for="a-pass">Password</label><input class="in" id="a-pass" type="password" autocomplete="current-password">
+    <label class="required" for="a-name" id="a-name-l" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
+    <label class="required" for="a-email">Email</label><input class="in" id="a-email" type="email" autocomplete="email" required>
+    <label class="required" for="a-pass">Password</label><input class="in" id="a-pass" type="password" autocomplete="current-password" required>
     <p id="a-err" role="alert"></p>
     <button class="primary" id="a-go" data-act="auth-go">Log in</button>
-    <button class="textbtn" id="a-switch" data-act="auth-mode">No account? Sign up</button>
+    <button class="textbtn" id="a-switch" data-act="auth-mode">Don't have an account? <strong>Sign up</strong></button>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1"></script>
