@@ -13,7 +13,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",syst
 @media(prefers-color-scheme:dark){@keyframes mesh-breathe{0%,100%{opacity:.23}50%{opacity:.38}}}
 @media(prefers-reduced-motion:reduce){#mesh-background{animation:none;opacity:.24}}
 button,input{font:inherit;color:inherit}
-button{cursor:pointer}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+input{-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 h1{font-size:1.6rem;margin:0 0 4px;font-weight:600;letter-spacing:-.02em}
 .page-title{font-size:2.25rem;line-height:1.15;margin:0 0 24px;font-weight:700;letter-spacing:-.05em}
@@ -26,6 +27,7 @@ main{width:100%;padding:48px 20px 150px;max-width:760px}
 .profile-menu summary{display:flex;align-items:center;gap:10px;list-style:none;cursor:pointer;padding:8px;border:1px solid var(--line);border-radius:99px;background:var(--surface);transition:border-color .15s,box-shadow .15s}
 .profile-menu summary:hover{border-color:var(--muted);box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .profile-menu summary::-webkit-details-marker{display:none}
+.profile-menu summary{-webkit-tap-highlight-color:transparent}
 .profile-name{font-weight:600}
 .profile-popover{position:absolute;right:0;top:calc(100% + 8px);z-index:10;display:grid;gap:6px;min-width:210px;padding:8px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14)}
 .profile-popover strong{padding:8px 10px 10px;border-bottom:1px solid var(--line)}
@@ -33,7 +35,7 @@ main{width:100%;padding:48px 20px 150px;max-width:760px}
 .menu-btn:hover{background:var(--hl)}
 nav{position:fixed;bottom:12px;left:12px;right:12px;display:flex;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.12);padding:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom,0px));z-index:5;backdrop-filter:blur(14px)}
 nav .brand{display:none}
-nav button{flex:1;border:0;background:none;border-radius:13px;padding:13px 4px;color:var(--muted);font-weight:500;transition:background .15s,color .15s}
+nav button{flex:1;border:0;background:none;border-radius:13px;padding:13px 4px;color:var(--muted);font-weight:500;transition:color .15s}
 nav button[aria-current=page]{background:var(--ink);color:var(--bg);font-weight:700}
 .day{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.85rem;margin:26px 0 12px}
 .day::before,.day::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -51,6 +53,7 @@ nav button[aria-current=page]{background:var(--ink);color:var(--bg);font-weight:
 .fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:14px 22px;font-weight:600;z-index:3}
 .btn{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 14px}
 .btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 .bar{display:flex;gap:8px;align-items:center;margin:16px 0}
 .bar .sp{flex:1;text-align:center;font-weight:600}
 .big{font-size:2.8rem;font-weight:600;letter-spacing:-.03em;margin:8px 0 0}
@@ -150,9 +153,11 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
 .skeleton-day{width:110px;height:14px;margin:4px 0 12px}
 .skeleton-card{height:82px;margin-bottom:10px}
 .topbar-skeleton{width:118px;height:58px}
-nav.loading button{color:transparent!important;border-color:transparent}
+nav.loading{background:linear-gradient(90deg,var(--hl) 20%,var(--line) 50%,var(--hl) 80%);background-size:200% 100%;animation:shimmer 1.4s infinite}
+nav.loading button{color:transparent!important;background:transparent!important;border-color:transparent}
 nav.loading .brand{color:transparent!important}
 nav.loading{pointer-events:none}
+nav.loading{border-color:var(--line)}
 @keyframes shimmer{to{background-position:-200% 0}}
 .auth-brand{font-size:2.35rem;line-height:1;font-weight:700;letter-spacing:-.07em;margin:0 0 48px 8px}
 .authbox h1{font-size:2.4rem;line-height:1.1;margin:0 0 8px;font-weight:700;letter-spacing:-.05em}
@@ -182,8 +187,10 @@ nav.loading{pointer-events:none}
 @media(max-width:799px){.fab{bottom:88px}}
 @media(max-width:799px){
   main{padding-bottom:124px}
-  nav{bottom:8px;border-radius:99px;padding:3px;padding-bottom:3px}
+  nav{bottom:16px;border-radius:99px;padding:3px;padding-bottom:3px}
   nav button{border-radius:99px;padding:11px 3px}
+  nav.loading{padding:3px}
+  nav.loading button{border-radius:99px;margin:2px 0}
   nav button[aria-current=page]{margin:2px;box-shadow:0 3px 10px rgba(0,0,0,.16)}
-  .fab{bottom:82px}
+  .fab{bottom:90px}
 }

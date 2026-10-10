@@ -163,12 +163,13 @@ function weekLabel(ws) {
 }
 function logView() {
   const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
+  const nextDisabled = s >= weekStart(new Date());
   const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
   const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
   let out = `<h1 class="page-title">Log</h1>
     <div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
       <button class="btn" data-act="lw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="lw" data-d="1" aria-label="Next week">›</button></div>`, last = '';
+      <button class="btn" data-act="lw" data-d="1" aria-label="Next week" ${nextDisabled ? 'disabled' : ''}>›</button></div>`, last = '';
   list.forEach(e => {
     if (e.date !== last) { out += `<div class="day">${dayLabel(e.date)}</div>`; last = e.date; }
     out += entryPanel(e, canDelete());
@@ -271,7 +272,7 @@ function sewersView() {
   return `<h1 class="page-title">Salary</h1>
     <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(e)}${cur ? ' (this week)' : ''}</span>
       <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="sw" data-d="1" aria-label="Next week">›</button></div>
+      <button class="btn" data-act="sw" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>
     <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', swSel === n)).join('')}</div>` +
     (Object.keys(by).length ? '' : '<p class="empty">No sewers were logged this week.</p>') + `<div id="detail">${detail}</div>`;
 }
@@ -298,9 +299,10 @@ function sewerTree(list) {
 }
 function weekBar(s, act) {
   const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
+  const nextDisabled = s >= weekStart(new Date());
   return `<div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
     <button class="btn" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
-    <button class="btn" data-act="${act}" data-d="1" aria-label="Next week">›</button></div>`;
+    <button class="btn" data-act="${act}" data-d="1" aria-label="Next week" ${nextDisabled ? 'disabled' : ''}>›</button></div>`;
 }
 function suppliersView() {
   const a = ymd(spWeek), b = ymd(addDays(spWeek, 6));
@@ -347,13 +349,14 @@ function renderLoading() {
   </div>`;
 }
 function render() {
-  document.getElementById('main').innerHTML = views[view]();
+  const nextView = view;
+  document.getElementById('main').innerHTML = views[nextView]();
   renderTopbar();
   const nav = document.querySelector('nav');
   nav.classList.remove('loading');
   nav.removeAttribute('aria-busy');
   document.querySelectorAll('nav [data-view]').forEach(b => {
-    if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    if (b.dataset.view === nextView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
 }
 const $ = id => document.getElementById(id);
@@ -416,7 +419,14 @@ document.addEventListener('click', ev => {
   if (!b) return;
   const d = b.dataset;
   if (d.act !== 'ask') pendingDel = null;
-  if (d.view) { view = d.view; }
+  if (d.view) {
+    if (view === d.view) return;
+    view = d.view;
+    sel = null;
+    swSel = null;
+    spSel = null;
+    pendingDel = null;
+  }
   else if (d.act === 'add') { openDialog(); return; }
   else if (d.act === 'cancel') { $('dlg').close(); return; }
   else if (d.act === 'save') { saveEntry(); return; }
