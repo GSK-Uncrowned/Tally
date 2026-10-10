@@ -7,6 +7,7 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
 #mesh-background{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.24;animation:mesh-breathe 18s ease-in-out infinite}
 .app{position:relative;z-index:1}
+.auth-screen .app{visibility:hidden}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) #mesh-background{opacity:.3}}
 @keyframes mesh-breathe{0%,100%{opacity:.18}50%{opacity:.3}}
 @media(prefers-color-scheme:dark){@keyframes mesh-breathe{0%,100%{opacity:.23}50%{opacity:.38}}}
@@ -139,7 +140,7 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 [hidden]{display:none!important}
-#auth{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--bg) 82%,transparent);display:grid;place-items:center;padding:24px}
+#auth{position:fixed;inset:0;z-index:30;background:transparent;display:grid;place-items:center;padding:24px}
 .authbox{width:min(420px,100%);padding:40px}
 .app-skeleton{padding-top:8px}
 .skeleton-heading,.skeleton-subheading,.skeleton-toolbar,.skeleton-day,.skeleton-card,.topbar-skeleton,nav.loading button,nav.loading .brand{background:linear-gradient(90deg,var(--hl) 25%,var(--line) 50%,var(--hl) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:12px}

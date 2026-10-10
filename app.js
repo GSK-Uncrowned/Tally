@@ -456,6 +456,7 @@ const canDelete = () => true;
 let authMode = 'login';
 function showAuth(msg) {
   const nav = document.querySelector('nav');
+  document.body.classList.add('auth-screen');
   nav.classList.remove('loading');
   nav.removeAttribute('aria-busy');
   $('topbar').hidden = true;
@@ -469,6 +470,10 @@ function showAuthError(message, ids = []) {
   box.classList.remove('shake');
   void box.offsetWidth;
   box.classList.add('shake');
+}
+function hideAuth() {
+  document.body.classList.remove('auth-screen');
+  $('auth').hidden = true;
 }
 function setAuthMode(m) {
   authMode = m;
@@ -492,7 +497,7 @@ async function refresh() {
     price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : ''}));
 }
 async function enter() {
-  $('auth').hidden = true;
+  hideAuth();
   renderLoading();
   const {data: u} = await sb.auth.getUser();
   const {data: p, error} = await sb.from('profiles').select('id, name').eq('id', u.user.id).single();
@@ -504,7 +509,7 @@ async function enter() {
   me = p;
   people = [p];
   await refresh();
-  $('auth').hidden = true; view = 'log'; render();
+  hideAuth(); view = 'log'; render();
 }
 async function authGo() {
   const email = $('a-email').value.trim(), password = $('a-pass').value, name = $('a-name').value.trim();
@@ -514,7 +519,7 @@ async function authGo() {
     if (password.length < 6) $('a-pass').classList.add('invalid');
     $('a-err').textContent = authMode === 'signup' ? 'Enter your name, an email, and a password of 6 or more characters.' : 'Enter your email and password.'; return;
   }
-  $('auth').hidden = true;
+  hideAuth();
   renderLoading();
   try {
     const res = authMode === 'signup' ? await sb.auth.signUp({email, password, options: {data: {name}}}) : await sb.auth.signInWithPassword({email, password});
