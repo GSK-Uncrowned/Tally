@@ -16,6 +16,7 @@
     <button data-view="sewers">Salary</button>
     <button data-view="suppliers">Suppliers</button>
     <button data-view="finance">Finance</button>
+    <button data-view="setup">Setup</button>
   </nav>
   <div class="workspace">
     <header class="topbar" id="topbar" hidden></header>
@@ -24,22 +25,18 @@
 </div>
 
 <dialog id="dlg">
-  <h2 style="margin-top:0">Add entry</h2>
-  <label class="required" for="f-date">Date</label><input class="in" id="f-date" type="date" required>
-  <label class="required" for="f-item">Item</label><input class="in" id="f-item" list="l-item" placeholder="Plain t-shirt" required>
-  <div class="two">
-    <div><label class="required" for="f-color">Color</label><input class="in" id="f-color" list="l-color" placeholder="White" required></div>
-    <div><label class="required" for="f-size">Size</label><input class="in" id="f-size" list="l-size" placeholder="Medium" required></div>
-  </div>
-  <label class="required" for="f-client">Who it came from</label><input class="in" id="f-client" list="l-client" placeholder="Marvin" required>
-  <label class="required" for="f-pay">Sewer pay per piece (₱)</label><input class="in" id="f-pay" type="number" min="0" step="0.01" inputmode="decimal" required>
-  <div class="two">
-  <div><label class="required" for="f-qty">Quantity</label><input class="in" id="f-qty" type="number" min="1" inputmode="numeric" required></div>
-  <div><label class="required" for="f-price">Price per piece (₱)</label><input class="in" id="f-price" type="number" min="0" step="0.01" inputmode="decimal" required></div>
-  </div>
-  <datalist id="l-item"></datalist><datalist id="l-color"></datalist><datalist id="l-size"></datalist><datalist id="l-client"></datalist>
+  <div id="wizard"></div>
   <p id="err" role="alert"></p>
-  <div class="actions"><button class="btn" data-act="cancel">Cancel</button><button class="primary" data-act="save">Save entry</button></div>
+  <div class="actions"><button class="btn" data-act="wizard-back">Back</button><button class="primary" data-act="wizard-next">Continue</button></div>
+</dialog>
+
+<dialog id="rate-dlg">
+  <h2 style="margin-top:0">Set price &amp; sewer pay</h2>
+  <p class="muted" id="rate-context"></p>
+  <label class="required" for="r-price">Price per piece (₱)</label><input class="in" id="r-price" type="number" min="0" step="0.01">
+  <label class="required" for="r-pay">Sewer pay per piece (₱)</label><input class="in" id="r-pay" type="number" min="0" step="0.01">
+  <p id="rate-err" role="alert"></p>
+  <div class="actions"><button class="btn" data-act="rate-cancel">Cancel</button><button class="primary" data-act="rate-save">Save rate</button></div>
 </dialog>
 
 <div id="auth" hidden>

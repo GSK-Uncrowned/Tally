@@ -15,6 +15,8 @@ const k = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(n
 
 // ---- Data layer (later: replace these two functions with Supabase calls) ----
 const KEY = 'tally-entries-v2';
+const RATE_KEY = 'tally-rates-v1';
+const CATALOG_KEY = 'tally-catalog-v1';
 // [days ago, item, color, size, qty, from, price, sewer, sewer pay]
 const DEMO = [
   [0,'Plain t-shirt','White','Medium',200,'Marvin',4,'Ana',1.5],[0,'Plain t-shirt','White','Small',400,'Marvin',4,'Ben',1.5],
@@ -36,7 +38,7 @@ const DEMO = [
   [2,'Pillowcase','White','Standard',120,'Mang Lito',15,'Ana',5],[2,'Apron','Green','Large',45,'Ate Joy',20,'Ana',7],
   [9,'Polo shirt','Maroon','Medium',30,'Aling Nena',35,'Ana',12],[10,'Apron','Red','Medium',60,'Ate Joy',20,'Ana',7]
 ];
-const DEMO_V = 2; // bump this when DEMO changes so old demo entries refresh
+const DEMO_V = 3; // bump this when DEMO changes so old demo entries refresh
 function demoEntries() {
   return DEMO.map((r, i) => ({id: 9e12 + i, date: ymd(addDays(new Date(), -r[0])), item: r[1], color: r[2], size: r[3],
     qty: r[4], client: r[5], price: r[6], sewer: r[7], pay: r[8], demo: DEMO_V}));
@@ -47,14 +49,76 @@ function loadEntries() {
   return seed();
 }
 function saveEntries() { try { localStorage.setItem(KEY, JSON.stringify(entries)); } catch (e) {} }
+function saveLocalSetup() {
+  try { localStorage.setItem(RATE_KEY, JSON.stringify(rates)); localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch (e) {}
+}
+function deriveLocalRates() {
+  const by = {};
+  entries.forEach(e => {
+    const key = rateKey(e.client, e.item, e.size);
+    if (!key || by[key] || !(Number(e.price) >= 0) || !(Number(e.pay) >= 0)) return;
+    by[key] = {supplier:e.client, item:e.item, size:e.size, price:Number(e.price), pay:Number(e.pay)};
+  });
+  rates = Object.values(by);
+  catalog = {item: [], color: [], size: [], supplier: []};
+  entries.forEach(e => {
+    [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
+      if (value && !catalog[kind].includes(value)) catalog[kind].push(value);
+    });
+  });
+  try {
+    const savedRates = JSON.parse(localStorage.getItem(RATE_KEY) || 'null');
+    const savedCatalog = JSON.parse(localStorage.getItem(CATALOG_KEY) || 'null');
+    if (Array.isArray(savedRates)) rates = savedRates;
+    if (savedCatalog && typeof savedCatalog === 'object') Object.keys(catalog).forEach(k => {
+      if (Array.isArray(savedCatalog[k])) catalog[k] = [...new Set([...catalog[k], ...savedCatalog[k]])];
+    });
+  } catch (e) {}
+}
 
 // ---- State ----
 // Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally with demo data
 const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR');
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let entries = [], me = null, people = [], demoMode = false;
+let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
+let wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
 month.setDate(1);
+
+function rateKey(supplier, item, size) {
+  return [supplier, item, size].map(v => String(v || '').trim().toLowerCase()).join('|');
+}
+function currentRate(e) {
+  if (e.price !== undefined && e.price !== null && e.pay !== undefined && e.pay !== null) {
+    return {price: Number(e.price) || 0, pay: Number(e.pay) || 0};
+  }
+  const r = rates.find(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size));
+  return r ? {price: Number(r.price), pay: Number(r.pay)} : {price: Number(e.price) || 0, pay: Number(e.pay) || 0};
+}
+function enrichEntries() {
+  entries.forEach(e => {
+    const r = currentRate(e);
+    e.price = Number(e.price) || r.price;
+    e.pay = Number(e.pay) || r.pay;
+  });
+}
+function catalogValues(kind) {
+  const values = new Set(catalog[kind] || []);
+  entries.forEach(e => {
+    const field = kind === 'supplier' ? 'client' : kind;
+    if (e[field]) values.add(e[field]);
+  });
+  return [...values].filter(Boolean).sort((a, b) => {
+    const field = kind === 'supplier' ? 'client' : kind;
+    const aEntries = entries.filter(e => e[field] === a);
+    const bEntries = entries.filter(e => e[field] === b);
+    if (aEntries.length !== bEntries.length) return bEntries.length - aEntries.length;
+    const latest = list => list.reduce((date, e) => e.date > date ? e.date : date, '');
+    const latestDiff = latest(bEntries).localeCompare(latest(aEntries));
+    return latestDiff || String(a).localeCompare(String(b));
+  });
+}
 
 const TRASH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
 const WARN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d92d20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2L12 3zM12 10v5M12 18v.5"/></svg>';
@@ -143,11 +207,13 @@ function dayLabel(s) {
   return parse(s).toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'});
 }
 function entryPanel(e, del, noClient) {
+  const r = currentRate(e);
+  const missing = !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size));
   const w = del && pendingDel == e.id;
   return `<div class="panel ${w ? 'warn' : ''}">
     <div class="main"><div class="title"><strong>${esc(noClient ? e.item : e.client)}</strong>${e.sewer ? `<span class="tag">by ${esc(e.sewer)}</span>` : ''}</div>
       <div class="muted">${noClient ? '' : esc(e.item) + ', '}${esc(e.color)}, ${esc(e.size)}</div></div>
-    <div class="r"><strong>${peso(cmp(e))}</strong><div class="muted">${e.qty} × ${peso(e.price)}</div></div>
+    <div class="r"><strong>${missing ? 'Rate needed' : peso(e.qty * r.price)}</strong><div class="muted">${e.qty} × ${missing ? '—' : peso(r.price)}</div></div>
     ${del ? `<button class="trash" data-act="ask" data-id="${e.id}" aria-label="Delete this entry">${TRASH}</button>` : ''}
     ${w ? `<div class="confirm" role="alert"><p>${WARN}<span>Delete this entry? This can't be undone.</span></p>
       <button class="btn" data-act="keep">Keep it</button>
@@ -315,7 +381,27 @@ function suppliersView() {
 }
 
 // ---- Render + events ----
-const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView};
+function setupView() {
+  const combos = {};
+  entries.forEach(e => {
+    if (!e.client || !e.item || !e.size) return;
+    const key = rateKey(e.client, e.item, e.size);
+    combos[key] = combos[key] || {supplier:e.client, item:e.item, size:e.size};
+  });
+  const missing = Object.values(combos).filter(c => !rates.some(r => rateKey(r.supplier, r.item, r.size) === rateKey(c.supplier, c.item, c.size)));
+  const rateRows = rates.slice().sort((a, b) => rateKey(a.supplier, a.item, a.size).localeCompare(rateKey(b.supplier, b.item, b.size)));
+  const cards = (kind, label) => `<section class="setup-section"><div class="bar"><h2>${label}</h2><button class="btn" data-act="catalog-add" data-kind="${kind}">Add</button></div>
+    <div class="option-list">${catalogValues(kind).map(v => `<span class="option-chip">${esc(v)}</span>`).join('') || '<span class="muted">No values yet.</span>'}</div></section>`;
+  return `<h1 class="page-title">Setup</h1>
+    <p class="muted">Manage rates and the options used when logging work.</p>
+    <section class="setup-section"><div class="bar"><h2>Needs attention <span class="tag">${missing.length}</span></h2></div>
+      ${missing.length ? missing.map(c => `<div class="rate-card missing"><div><strong>${esc(c.supplier)}</strong><div class="muted">${esc(c.item)} · ${esc(c.size)}</div></div><button class="primary" data-act="rate-edit" data-supplier="${esc(c.supplier)}" data-item="${esc(c.item)}" data-size="${esc(c.size)}">Set rate</button></div>`).join('') : '<p class="empty">Everything used in your entries has a price and sewer pay.</p>'}
+    </section>
+    <section class="setup-section"><div class="bar"><h2>Price &amp; sewer pay</h2><button class="btn" data-act="rate-add">Add rate</button></div>
+      ${rateRows.length ? rateRows.map(r => `<div class="rate-card"><div><strong>${esc(r.supplier)}</strong><div class="muted">${esc(r.item)} · ${esc(r.size)}</div></div><div class="r"><strong>${peso(r.price)}</strong><div class="muted">pay ${peso(r.pay)}</div></div><button class="btn" data-act="rate-edit" data-supplier="${esc(r.supplier)}" data-item="${esc(r.item)}" data-size="${esc(r.size)}">Edit</button></div>`).join('') : '<p class="empty">No rates yet.</p>'}
+    </section>${cards('item', 'Items')}${cards('size', 'Sizes')}${cards('color', 'Colors')}${cards('supplier', 'Suppliers')}`;
+}
+const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView};
 function renderTopbar() {
   const topbar = $('topbar');
   if (!cloud || !me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
@@ -360,24 +446,72 @@ function render() {
   });
 }
 const $ = id => document.getElementById(id);
+const WIZARD_STEPS = [
+  {key: 'client', label: 'Who is it from?', kind: 'supplier'},
+  {key: 'item', label: 'What are you sewing?', kind: 'item'},
+  {key: 'color', label: 'What color is it?', kind: 'color'},
+  {key: 'size', label: 'What size is it?', kind: 'size'},
+  {key: 'qty', label: 'How many pieces?', kind: 'quantity'}
+];
+function wizardOptions(kind) {
+  if (kind !== 'item' || !wizard.values.client) return catalogValues(kind);
+  const linked = new Set(entries.filter(e => e.client === wizard.values.client).map(e => e.item));
+  const values = catalogValues(kind);
+  return values.filter(v => linked.has(v));
+}
 function openDialog() {
-  const uniq = f => [...new Set(entries.map(e => e[f]))].map(v => `<option value="${esc(v)}">`).join('');
-  $('l-item').innerHTML = uniq('item'); $('l-color').innerHTML = uniq('color'); $('l-client').innerHTML = uniq('client');
-  $('l-size').innerHTML = ['Small', 'Medium', 'Large', 'XL'].map(v => `<option value="${v}">`).join('');
-  ['item', 'color', 'size', 'client', 'pay', 'qty', 'price'].forEach(f => $('f-' + f).value = '');
-  $('f-date').value = ymd(new Date()); $('err').textContent = '';
+  wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
+  $('err').textContent = '';
+  renderWizard();
   $('dlg').showModal();
+}
+function renderWizard() {
+  const s = WIZARD_STEPS[wizard.step], values = wizardOptions(s.kind);
+  const selected = wizard.values[s.key];
+  const cards = values.map(v => `<button class="choice-card ${selected === v ? 'selected' : ''}" data-act="wizard-choice" data-key="${s.key}" data-value="${esc(v)}">${esc(v)}</button>`).join('');
+  const other = `<button class="choice-card other ${wizard.other ? 'selected' : ''}" data-act="wizard-other" data-key="${s.key}"><span class="other-icon">＋</span>Other</button>`;
+  const custom = wizard.other ? `<input class="in wizard-other-input" id="wizard-other-input" placeholder="Type a new ${s.label.toLowerCase()}" value="${esc(selected || '')}" autofocus>` : '';
+  const qty = s.kind === 'quantity' ? `<input class="in wizard-quantity" id="wizard-quantity" type="number" min="1" inputmode="numeric" placeholder="Quantity" value="${esc(selected || '')}" autofocus>` : '';
+  $('wizard').innerHTML = `<button type="button" class="wizard-close" data-act="close-wizard" aria-label="Close add entry">&times;</button>
+    <div class="wizard-progress"><span>Step ${wizard.step + 1} of ${WIZARD_STEPS.length}</span><span>${wizard.date === ymd(new Date()) ? 'Today' : wizard.date}</span></div>
+    <h2 class="wizard-title">${s.label}</h2><div class="choice-grid">${s.kind === 'quantity' ? qty : cards + other}</div>
+    ${custom}<button class="textbtn date-toggle" data-act="wizard-date">Using today · Change date</button>`;
+  $('dlg').querySelector('[data-act="wizard-back"]').hidden = wizard.step === 0;
+  const next = $('dlg').querySelector('[data-act="wizard-next"]');
+  next.textContent = wizard.step === WIZARD_STEPS.length - 1 ? 'Save entry' : 'Continue';
+  next.hidden = s.kind !== 'quantity' && !wizard.other;
+}
+function wizardValue() {
+  const s = WIZARD_STEPS[wizard.step];
+  if (s.kind === 'quantity') return $('wizard-quantity').value.trim();
+  if (wizard.other) return $('wizard-other-input').value.trim();
+  return wizard.values[s.key] || '';
+}
+function wizardNext() {
+  const s = WIZARD_STEPS[wizard.step], value = wizardValue();
+  if (!value || (s.kind === 'quantity' && !(Number(value) > 0))) {
+    $('err').textContent = s.kind === 'quantity' ? 'Enter a quantity above 0.' : 'Choose an option or add a new value.';
+    return;
+  }
+  wizard.values[s.key] = s.kind === 'quantity' ? Number(value) : value;
+  wizard.other = false;
+  if (wizard.step < WIZARD_STEPS.length - 1) { wizard.step++; renderWizard(); return; }
+  saveEntry();
+}
+function wizardBack() {
+  if (wizard.step > 0) { wizard.step--; wizard.other = false; renderWizard(); }
 }
 async function toggleDemo() {
   if (demoMode) {
     demoMode = false;
     if (cloud) await refresh();
-    else entries = loadEntries();
+    else { entries = loadEntries(); deriveLocalRates(); }
     render();
     return;
   }
   demoMode = true;
   entries = demoEntries();
+  deriveLocalRates();
   render();
 }
 function validateRequired(ids) {
@@ -395,22 +529,29 @@ function validateRequired(ids) {
   return true;
 }
 async function saveEntry() {
-  if (!validateRequired(['f-date', 'f-item', 'f-color', 'f-size', 'f-client', 'f-pay', 'f-qty', 'f-price'])) return;
-  const e = {date: $('f-date').value, item: $('f-item').value.trim(), color: $('f-color').value.trim() || 'Any',
-    size: $('f-size').value.trim() || 'Any', client: $('f-client').value.trim() || 'Unknown',
-    sewer: cloud ? me.name : '', pay: Number($('f-pay').value) || 0,
-    qty: Number($('f-qty').value), price: Number($('f-price').value)};
-  if (!e.date || !e.item || !(e.qty > 0) || !(e.price >= 0) || $('f-price').value === '') {
-    if (!(e.qty > 0)) $('f-qty').classList.add('invalid');
-    if (!(e.price >= 0) || $('f-price').value === '') $('f-price').classList.add('invalid');
-    $('err').textContent = 'Add a date, an item name, a quantity above 0, and a price per piece.'; return;
-  }
+  const v = wizard.values, e = {date: wizard.date, item: v.item, color: v.color || 'Any', size: v.size || 'Any',
+    client: v.client || 'Unknown', sewer: cloud ? me.name : '', qty: Number(v.qty)};
+  const r = currentRate(e);
+  e.price = r.price; e.pay = r.pay;
   if (cloud) {
     const {error} = await sb.from('entries').insert({date: e.date, item: e.item, color: e.color, size: e.size, client: e.client,
       qty: e.qty, price: e.price, pay: e.pay, sewer_id: me.id});
     if (error) { $('err').textContent = error.message; return; }
+    const additions = [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]]
+      .filter(([kind, value]) => !catalog[kind].includes(value))
+      .map(([kind, value]) => ({kind, value, created_by: me.id}));
+    if (additions.length) {
+      const {error: catalogError} = await sb.from('tally_catalog_values').upsert(additions, {onConflict:'kind,value'});
+      if (catalogError) { $('err').textContent = catalogError.message; return; }
+    }
     await refresh();
-  } else { e.id = Date.now(); entries.push(e); saveEntries(); }
+  } else {
+    e.id = Date.now(); entries.push(e);
+    [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
+      if (!catalog[kind].includes(value)) catalog[kind].push(value);
+    });
+    saveEntries(); saveLocalSetup();
+  }
   logWeek = weekStart(parse(e.date)); $('dlg').close(); render();
 }
 
@@ -428,8 +569,32 @@ document.addEventListener('click', ev => {
     pendingDel = null;
   }
   else if (d.act === 'add') { openDialog(); return; }
-  else if (d.act === 'cancel') { $('dlg').close(); return; }
+  else if (d.act === 'cancel' || d.act === 'close-wizard') { $('dlg').close(); return; }
+  else if (d.act === 'wizard-choice') {
+    wizard.values[d.key] = d.value;
+    wizard.other = false;
+    if (d.key === 'client') {
+      delete wizard.values.item;
+      delete wizard.values.color;
+      delete wizard.values.size;
+    }
+    wizardNext();
+    return;
+  }
+  else if (d.act === 'wizard-other') { wizard.other = true; renderWizard(); return; }
+  else if (d.act === 'wizard-next') { wizardNext(); return; }
+  else if (d.act === 'wizard-back') { wizardBack(); return; }
+  else if (d.act === 'wizard-date') {
+    const date = prompt('Use a different date (YYYY-MM-DD), or cancel to keep today:', wizard.date);
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) { wizard.date = date; renderWizard(); }
+    return;
+  }
   else if (d.act === 'save') { saveEntry(); return; }
+  else if (d.act === 'rate-add') { addRateFlow(); return; }
+  else if (d.act === 'rate-edit') { openRateDialog(d.supplier, d.item, d.size); return; }
+  else if (d.act === 'rate-cancel') { $('rate-dlg').close(); return; }
+  else if (d.act === 'rate-save') { saveRate(); return; }
+  else if (d.act === 'catalog-add') { addCatalogValue(d.kind); return; }
   else if (d.act === 'demo') { toggleDemo(); return; }
   else if (d.act === 'ask') pendingDel = d.id;
   else if (d.act === 'del') { removeEntry(d.id); return; }
@@ -458,9 +623,78 @@ document.addEventListener('keydown', ev => {
     authGo();
   } else if (ev.target.closest('#dlg')) {
     ev.preventDefault();
-    saveEntry();
+    wizardNext();
+  } else if (ev.target.closest('#rate-dlg')) {
+    ev.preventDefault();
+    saveRate();
   }
 });
+let editingRate = null;
+function openRateDialog(supplier = '', item = '', size = '') {
+  editingRate = {supplier, item, size};
+  const r = rates.find(x => rateKey(x.supplier, x.item, x.size) === rateKey(supplier, item, size));
+  $('rate-context').textContent = `${supplier || 'Supplier'} · ${item || 'Item'} · ${size || 'Size'}`;
+  $('r-price').value = r ? r.price : '';
+  $('r-pay').value = r ? r.pay : '';
+  $('rate-err').textContent = '';
+  $('rate-dlg').showModal();
+}
+function addRateFlow() {
+  const supplier = prompt('Supplier name:');
+  if (!supplier || !supplier.trim()) return;
+  const item = prompt('Item name:');
+  if (!item || !item.trim()) return;
+  const size = prompt('Size:');
+  if (!size || !size.trim()) return;
+  openRateDialog(supplier.trim(), item.trim(), size.trim());
+}
+async function saveRate() {
+  const price = Number($('r-price').value), pay = Number($('r-pay').value);
+  if (!editingRate || !(price >= 0) || !(pay >= 0) || $('r-price').value === '' || $('r-pay').value === '') {
+    $('rate-err').textContent = 'Enter both a valid price and sewer pay.'; return;
+  }
+  const r = {...editingRate, price, pay};
+  const existing = rates.findIndex(x => rateKey(x.supplier, x.item, x.size) === rateKey(r.supplier, r.item, r.size));
+  const previousRate = existing >= 0 ? {...rates[existing]} : null;
+  if (existing >= 0) rates[existing] = {...rates[existing], ...r}; else rates.push(r);
+  const start = ymd(weekStart(new Date()));
+  const inCurrentWeek = e => e.date >= start && e.date <= ymd(addDays(parse(start), 6)) &&
+    rateKey(e.client, e.item, e.size) === rateKey(r.supplier, r.item, r.size);
+  const affected = entries.filter(inCurrentWeek);
+  const previousEntries = affected.map(e => ({e, price:e.price, pay:e.pay}));
+  affected.forEach(e => { e.price = price; e.pay = pay; });
+  if (cloud) {
+    const {error} = await sb.from('tally_rates').upsert({supplier:r.supplier, item:r.item, size:r.size, price, pay, created_by:me.id},
+      {onConflict:'supplier,item,size'});
+    if (error) {
+      if (previousRate) rates[existing] = previousRate; else rates.splice(rates.length - 1, 1);
+      previousEntries.forEach(x => { x.e.price = x.price; x.e.pay = x.pay; });
+      $('rate-err').textContent = error.message; return;
+    }
+    if (affected.length) {
+      const ids = affected.map(e => e.id);
+      const {error: updateError} = await sb.from('entries').update({price, pay}).in('id', ids);
+      if (updateError) {
+        if (previousRate) rates[existing] = previousRate; else rates.splice(rates.length - 1, 1);
+        previousEntries.forEach(x => { x.e.price = x.price; x.e.pay = x.pay; });
+        $('rate-err').textContent = updateError.message; return;
+      }
+    }
+  } else { saveEntries(); saveLocalSetup(); }
+  $('rate-dlg').close(); render();
+}
+async function addCatalogValue(kind) {
+  const label = kind === 'supplier' ? 'supplier' : kind;
+  const value = prompt(`Add a new ${label}:`);
+  if (!value || !value.trim()) return;
+  const clean = value.trim();
+  if (!catalog[kind].some(v => v.toLowerCase() === clean.toLowerCase())) catalog[kind].push(clean);
+  if (cloud) {
+    const {error} = await sb.from('tally_catalog_values').insert({kind, value:clean, created_by:me.id});
+    if (error && error.code !== '23505') { alert('Could not add option: ' + error.message); return; }
+  } else saveLocalSetup();
+  render();
+}
 // ---- Cloud (Supabase) ----
 const canDelete = () => true;
 let authMode = 'login';
@@ -505,6 +739,16 @@ async function refresh() {
   if (error) { alert('Could not load entries: ' + error.message); return; }
   entries = data.map(r => ({id: r.id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
     price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : ''}));
+  const [rateRes, catalogRes] = await Promise.all([
+    sb.from('tally_rates').select('supplier, item, size, price, pay'),
+    sb.from('tally_catalog_values').select('kind, value').order('value')
+  ]);
+  if (rateRes.error) { alert('Could not load rates: ' + rateRes.error.message); return; }
+  if (catalogRes.error) { alert('Could not load catalog: ' + catalogRes.error.message); return; }
+  rates = rateRes.data || [];
+  catalog = {item: [], color: [], size: [], supplier: []};
+  (catalogRes.data || []).forEach(x => { if (catalog[x.kind]) catalog[x.kind].push(x.value); });
+  enrichEntries();
 }
 async function enter() {
   hideAuth();
@@ -566,7 +810,7 @@ async function removeEntry(id) {
   }
 }
 async function boot() {
-  if (!cloud) { entries = loadEntries(); render(); return; }
+  if (!cloud) { entries = loadEntries(); deriveLocalRates(); render(); return; }
   renderLoading();
   const {data} = await sb.auth.getSession();
   if (data.session) await enter(); else showAuth();
