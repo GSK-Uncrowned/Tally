@@ -19,6 +19,7 @@ It uses a black-and-white minimalist design, works on phones and desktops, and f
 
 - Plain HTML, CSS, and JavaScript in a single file. No framework and no build step.
 - When Supabase is configured, data is saved online so signed-in users can share it. Without Supabase configuration, data is saved in the browser (localStorage).
+- In cloud mode, the app uses Supabase Realtime to keep entries, rates, and catalog options synchronized across open devices. Realtime must be enabled for those tables in the Supabase project.
 
 ## Run it
 

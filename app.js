@@ -82,6 +82,7 @@ const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let entries = [], me = null, people = [], demoMode = false;
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
+let realtimeChannel = null, realtimeState = 'DISCONNECTED';
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
 let wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
 month.setDate(1);
@@ -410,6 +411,7 @@ function renderTopbar() {
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
       <strong>${esc(me.name)}</strong>
+      <span class="live-status ${realtimeState === 'SUBSCRIBED' ? 'live' : ''}" role="status">${realtimeState === 'SUBSCRIBED' ? 'Live sync on' : 'Live sync reconnecting'}</span>
       <button class="menu-btn" data-act="demo">${demoMode ? 'Exit demo mode' : 'Try demo data'}</button>
       <button class="menu-btn" data-act="logout">Log out</button>
     </div>
@@ -599,6 +601,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'ask') pendingDel = d.id;
   else if (d.act === 'del') { removeEntry(d.id); return; }
   else if (d.act === 'auth-go') { authGo(); return; }
+  else if (d.act === 'auth-google') { authGoogle(); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'week' || d.act === 'day') {
@@ -750,6 +753,68 @@ async function refresh() {
   (catalogRes.data || []).forEach(x => { if (catalog[x.kind]) catalog[x.kind].push(x.value); });
   enrichEntries();
 }
+function entryFromRow(r) {
+  return {id: r.id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
+    price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : (r.sewer_id === me.id ? me.name : '')};
+}
+function applyRealtimeEntry(payload) {
+  if (demoMode) return;
+  const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+  if (!row) return;
+  const index = entries.findIndex(e => String(e.id) === String(row.id));
+  if (payload.eventType === 'DELETE') {
+    if (index >= 0) entries.splice(index, 1);
+  } else {
+    const next = entryFromRow(row);
+    if (index >= 0) entries[index] = {...entries[index], ...next};
+    else entries.push(next);
+  }
+  entries.sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
+  render();
+}
+function applyRealtimeRate(payload) {
+  const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+  if (!row) return;
+  const key = rateKey(row.supplier, row.item, row.size);
+  const index = rates.findIndex(r => rateKey(r.supplier, r.item, r.size) === key);
+  if (payload.eventType === 'DELETE') {
+    if (index >= 0) rates.splice(index, 1);
+  } else {
+    const next = {supplier: row.supplier, item: row.item, size: row.size, price: Number(row.price), pay: Number(row.pay)};
+    if (index >= 0) rates[index] = next; else rates.push(next);
+  }
+  enrichEntries();
+  render();
+}
+function applyRealtimeCatalog(payload) {
+  const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+  if (!row || !catalog[row.kind]) return;
+  if (payload.eventType === 'DELETE') {
+    catalog[row.kind] = catalog[row.kind].filter(value => value !== row.value);
+  } else if (!catalog[row.kind].includes(row.value)) {
+    catalog[row.kind].push(row.value);
+  }
+  render();
+}
+function subscribeRealtime() {
+  if (!cloud || !me) return;
+  if (realtimeChannel) sb.removeChannel(realtimeChannel);
+  realtimeState = 'CONNECTING';
+  realtimeChannel = sb.channel(`tally:${me.id}`)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'entries'}, applyRealtimeEntry)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_rates'}, applyRealtimeRate)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_catalog_values'}, applyRealtimeCatalog)
+    .subscribe(status => {
+      realtimeState = status;
+      renderTopbar();
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') refresh();
+    });
+}
+async function unsubscribeRealtime() {
+  if (realtimeChannel) await sb.removeChannel(realtimeChannel);
+  realtimeChannel = null;
+  realtimeState = 'DISCONNECTED';
+}
 async function enter() {
   hideAuth();
   renderLoading();
@@ -763,6 +828,7 @@ async function enter() {
   me = p;
   people = [p];
   await refresh();
+  subscribeRealtime();
   hideAuth(); view = 'log'; render();
 }
 async function authGo() {
@@ -788,7 +854,26 @@ async function authGo() {
     showAuth('Could not connect. Check your connection and try again.');
   }
 }
-async function logout() { await sb.auth.signOut(); me = null; entries = []; people = []; demoMode = false; setAuthMode('login'); showAuth(); renderTopbar(); }
+async function authGoogle() {
+  $('a-err').textContent = '';
+  $('a-go').disabled = true;
+  document.querySelector('[data-act="auth-google"]').disabled = true;
+  const {error} = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: {redirectTo: window.location.origin + window.location.pathname}
+  });
+  if (error) {
+    $('a-go').disabled = false;
+    document.querySelector('[data-act="auth-google"]').disabled = false;
+    $('a-err').textContent = error.message;
+  }
+}
+async function logout() {
+  await unsubscribeRealtime();
+  await sb.auth.signOut();
+  me = null; entries = []; people = []; demoMode = false;
+  setAuthMode('login'); showAuth(); renderTopbar();
+}
 async function removeEntry(id) {
   const removed = entries.find(e => e.id == id);
   if (!removed) return;
