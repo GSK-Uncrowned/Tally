@@ -408,11 +408,13 @@ function renderTopbar() {
   const topbar = $('topbar');
   if (!cloud || !me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
   topbar.hidden = false;
-  topbar.innerHTML = `<details class="profile-menu">
+  const realtimeLive = realtimeState === 'SUBSCRIBED';
+  topbar.innerHTML = `<span class="live-status ${realtimeLive ? 'live' : ''}" role="status" title="${realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting'}">
+      <span class="live-dot" aria-hidden="true"></span><span class="live-label">${realtimeLive ? 'Live' : 'Syncing'}</span>
+    </span><details class="profile-menu">
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
       <strong>${esc(me.name)}</strong>
-      <span class="live-status ${realtimeState === 'SUBSCRIBED' ? 'live' : ''}" role="status">${realtimeState === 'SUBSCRIBED' ? 'Live sync on' : 'Live sync reconnecting'}</span>
       <button class="menu-btn" data-act="demo">${demoMode ? 'Exit demo mode' : 'Try demo data'}</button>
       <button class="menu-btn" data-act="logout">Log out</button>
     </div>
@@ -603,6 +605,8 @@ document.addEventListener('click', ev => {
   else if (d.act === 'del') { removeEntry(d.id); return; }
   else if (d.act === 'auth-go') { authGo(); return; }
   else if (d.act === 'auth-google') { authGoogle(); return; }
+  else if (d.act === 'auth-resend') { resendConfirmation(); return; }
+  else if (d.act === 'auth-back') { hideConfirmation(); setAuthMode('login'); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'week' || d.act === 'day') {
@@ -709,6 +713,7 @@ function showAuth(msg) {
   nav.removeAttribute('aria-busy');
   $('topbar').hidden = true;
   $('auth').hidden = false;
+  $('confirm-modal').hidden = true;
   $('a-err').textContent = msg || '';
 }
 function showAuthError(message, ids = []) {
@@ -725,6 +730,7 @@ function hideAuth() {
 }
 function setAuthMode(m) {
   authMode = m;
+  hideConfirmation();
   $('a-name').hidden = $('a-name-l').hidden = m !== 'signup';
   $('a-name').required = m === 'signup';
   $('a-name').classList.remove('invalid');
@@ -735,6 +741,28 @@ function setAuthMode(m) {
     : "Don't have an account? <strong>Sign up</strong>";
   $('a-sub').textContent = m === 'signup' ? 'Create your account' : 'Log in to continue';
   $('a-err').textContent = '';
+}
+function confirmationRedirectUrl() {
+  return window.location.origin + window.location.pathname;
+}
+function showConfirmation(email) {
+  $('confirm-email').textContent = email;
+  $('confirm-status').textContent = '';
+  $('confirm-modal').hidden = false;
+  $('a-err').textContent = '';
+}
+function hideConfirmation() {
+  $('confirm-modal').hidden = true;
+}
+async function resendConfirmation() {
+  const email = $('confirm-email').textContent.trim();
+  if (!email) return;
+  const button = document.querySelector('[data-act="auth-resend"]');
+  button.disabled = true;
+  $('confirm-status').textContent = 'Sending…';
+  const {error} = await sb.auth.resend({type: 'signup', email, options: {emailRedirectTo: confirmationRedirectUrl()}});
+  button.disabled = false;
+  $('confirm-status').textContent = error ? error.message : 'A new confirmation email is on its way.';
 }
 async function refresh() {
   const {data, error} = await sb.from('entries')
@@ -860,16 +888,17 @@ async function authGo() {
     if (password.length < 6) $('a-pass').classList.add('invalid');
     $('a-err').textContent = authMode === 'signup' ? 'Enter your name, an email, and a password of 6 or more characters.' : 'Enter your email and password.'; return;
   }
-  hideAuth();
-  renderLoading();
   try {
-    const res = authMode === 'signup' ? await sb.auth.signUp({email, password, options: {data: {name}}}) : await sb.auth.signInWithPassword({email, password});
+    const res = authMode === 'signup'
+      ? await sb.auth.signUp({email, password, options: {data: {name}, emailRedirectTo: confirmationRedirectUrl()}})
+      : await sb.auth.signInWithPassword({email, password});
     if (res.error) {
       const fields = authMode === 'login' ? ['a-email', 'a-pass'] : ['a-email'];
       showAuthError(res.error.message, fields);
       return;
     }
-    if (!res.data.session) { showAuth('Check your email to confirm your account, then log in.'); return; }
+    if (!res.data.session) { showAuth(); showConfirmation(email); return; }
+    renderLoading();
     await enter();
   } catch (e) {
     showAuth('Could not connect. Check your connection and try again.');

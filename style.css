@@ -32,8 +32,11 @@ main{width:100%;padding:48px 20px 150px;max-width:760px}
 .profile-name{font-weight:600}
 .profile-popover{position:absolute;right:0;top:calc(100% + 8px);z-index:10;display:grid;gap:6px;min-width:210px;padding:8px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14)}
 .profile-popover strong{padding:8px 10px 10px;border-bottom:1px solid var(--line)}
-.live-status{padding:6px 10px;color:var(--muted);font-size:.8rem}
+.live-status{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:.75rem;white-space:nowrap}
 .live-status.live{color:#16803c}
+.live-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.live-status:not(.live) .live-dot{animation:live-pulse 1.4s ease-in-out infinite}
+@keyframes live-pulse{50%{opacity:.35}}
 .menu-btn{border:0;border-radius:9px;background:none;padding:8px;text-align:left;color:inherit}
 .menu-btn:hover{background:var(--hl)}
 nav{position:fixed;bottom:12px;left:12px;right:12px;display:flex;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.12);padding:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom,0px));z-index:5;backdrop-filter:blur(14px)}
@@ -194,11 +197,21 @@ nav.loading{border-color:var(--line)}
 .authbox .primary{width:100%;margin-top:8px;padding:12px 18px}
 .auth-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--muted);font-size:.8rem}
 .auth-divider::before,.auth-divider::after{content:"";height:1px;flex:1;background:var(--line)}
-.oauth-btn{width:100%;padding:11px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:600}
+.oauth-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:600}
+.google-mark{width:18px;height:18px;flex:none}
 .oauth-btn:hover{border-color:var(--muted);background:var(--hl)}
 .oauth-btn:disabled,.authbox .primary:disabled{opacity:.55;cursor:wait}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .authbox .primary{background:#e8e5df;color:#171717}}
 #a-err{min-height:1.3em;margin:10px 0 0;font-size:.9rem}
+.confirm-modal{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.38);backdrop-filter:blur(8px)}
+.confirm-panel{width:min(390px,100%);padding:28px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+.confirm-icon{font-size:2rem;line-height:1;margin-bottom:12px}
+.confirm-panel h2{margin:0 0 8px;font-size:1.25rem}
+.confirm-panel p{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.confirm-panel strong{color:var(--ink);overflow-wrap:anywhere}
+.confirm-panel .primary{width:100%;margin-top:0}
+.confirm-panel .textbtn{margin-top:8px}
+#confirm-status{min-height:1.2em;margin:10px 0 0}
 .textbtn{display:block;width:100%;margin-top:16px;border:0;background:none;color:var(--muted);padding:8px 0;font-weight:500;text-align:center;cursor:pointer}
 .textbtn strong{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .textbtn:hover strong{color:var(--muted)}
