@@ -81,6 +81,7 @@ function deriveLocalRates() {
 const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR');
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let entries = [], me = null, people = [], demoMode = false;
+const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let realtimeChannel = null, realtimeState = 'DISCONNECTED';
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
@@ -740,8 +741,11 @@ async function refresh() {
     .select('id, date, item, color, size, qty, client, price, pay, sewer_id, profiles(name)')
     .order('date', {ascending: false});
   if (error) { alert('Could not load entries: ' + error.message); return; }
-  entries = data.map(r => ({id: r.id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
-    price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : ''}));
+  profileNames.clear();
+  data.forEach(r => {
+    if (r.sewer_id && r.profiles && r.profiles.name) profileNames.set(r.sewer_id, r.profiles.name);
+  });
+  entries = data.map(entryFromRow);
   const [rateRes, catalogRes] = await Promise.all([
     sb.from('tally_rates').select('supplier, item, size, price, pay'),
     sb.from('tally_catalog_values').select('kind, value').order('value')
@@ -755,9 +759,20 @@ async function refresh() {
 }
 function entryFromRow(r) {
   return {id: r.id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
-    price: Number(r.price), pay: Number(r.pay), sewer: r.profiles ? r.profiles.name : (r.sewer_id === me.id ? me.name : '')};
+    price: Number(r.price), pay: Number(r.pay),
+    sewer: r.profiles ? r.profiles.name : (r.sewer_id === me.id ? me.name : profileNames.get(r.sewer_id) || 'Unknown sewer')};
 }
-function applyRealtimeEntry(payload) {
+async function loadRealtimeProfile(sewerId) {
+  if (!sewerId || profileNames.has(sewerId)) return profileNames.get(sewerId) || 'Unknown sewer';
+  const {data, error} = await sb.from('profiles').select('name').eq('id', sewerId).single();
+  if (error) {
+    console.error('Could not load the sewer profile for a realtime entry:', error);
+    return 'Unknown sewer';
+  }
+  profileNames.set(sewerId, data.name);
+  return data.name;
+}
+async function applyRealtimeEntry(payload) {
   if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
@@ -768,6 +783,11 @@ function applyRealtimeEntry(payload) {
     const next = entryFromRow(row);
     if (index >= 0) entries[index] = {...entries[index], ...next};
     else entries.push(next);
+    if (row.sewer_id && !profileNames.has(row.sewer_id)) {
+      next.sewer = await loadRealtimeProfile(row.sewer_id);
+      const currentIndex = entries.findIndex(e => String(e.id) === String(row.id));
+      if (currentIndex >= 0) entries[currentIndex].sewer = next.sewer;
+    }
   }
   entries.sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
   render();
@@ -827,6 +847,7 @@ async function enter() {
   }
   me = p;
   people = [p];
+  profileNames.set(p.id, p.name);
   await refresh();
   subscribeRealtime();
   hideAuth(); view = 'log'; render();
@@ -871,7 +892,7 @@ async function authGoogle() {
 async function logout() {
   await unsubscribeRealtime();
   await sb.auth.signOut();
-  me = null; entries = []; people = []; demoMode = false;
+  me = null; entries = []; people = []; profileNames.clear(); demoMode = false;
   setAuthMode('login'); showAuth(); renderTopbar();
 }
 async function removeEntry(id) {
