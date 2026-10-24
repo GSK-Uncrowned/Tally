@@ -211,7 +211,13 @@ nav.loading{border-color:var(--line)}
 .confirm-panel strong{color:var(--ink);overflow-wrap:anywhere}
 .confirm-panel .primary{width:100%;margin-top:0}
 .confirm-panel .textbtn{margin-top:8px}
+.confirm-panel [data-act="auth-test-confirm"]{color:var(--ink);font-weight:600}
 #confirm-status{min-height:1.2em;margin:10px 0 0}
+.tally-loader{display:inline-grid;place-items:center;width:48px;height:48px;border:3px solid var(--line);border-top-color:var(--ink);border-radius:50%;font-size:1.15rem;font-weight:700;letter-spacing:-.08em;animation:tally-spin 1s linear infinite}
+.confirm-panel.loading .confirm-icon{height:48px;margin-bottom:16px}
+.confirm-panel.loading #confirm-status{color:var(--muted)}
+@keyframes tally-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.tally-loader{animation:none}}
 .textbtn{display:block;width:100%;margin-top:16px;border:0;background:none;color:var(--muted);padding:8px 0;font-weight:500;text-align:center;cursor:pointer}
 .textbtn strong{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .textbtn:hover strong{color:var(--muted)}

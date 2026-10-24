@@ -80,6 +80,8 @@ function deriveLocalRates() {
 // Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally with demo data
 const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR');
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const authTest = ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+  new URLSearchParams(window.location.search).has('auth-test');
 let entries = [], me = null, people = [], demoMode = false;
 const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
@@ -607,6 +609,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'auth-google') { authGoogle(); return; }
   else if (d.act === 'auth-resend') { resendConfirmation(); return; }
   else if (d.act === 'auth-back') { hideConfirmation(); setAuthMode('login'); return; }
+  else if (d.act === 'auth-test-confirm') { enterAuthTestWorkspace(); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'week' || d.act === 'day') {
@@ -746,17 +749,53 @@ function confirmationRedirectUrl() {
   return window.location.origin + window.location.pathname;
 }
 function showConfirmation(email) {
+  const panel = document.querySelector('.confirm-panel');
+  panel.classList.remove('loading');
+  $('confirm-icon').textContent = '✉';
+  $('confirm-title').textContent = 'Check your email';
+  $('confirm-message').innerHTML = 'We sent a confirmation link to <strong id="confirm-email"></strong>. Open it to activate your account.';
   $('confirm-email').textContent = email;
+  $('confirm-actions').hidden = false;
+  document.querySelector('[data-act="auth-test-confirm"]').hidden = !authTest;
   $('confirm-status').textContent = '';
   $('confirm-modal').hidden = false;
   $('a-err').textContent = '';
 }
+function showConfirmationLoading(email) {
+  const panel = document.querySelector('.confirm-panel');
+  panel.classList.add('loading');
+  $('confirm-icon').innerHTML = '<span class="tally-loader">T</span>';
+  $('confirm-title').textContent = 'Creating your account…';
+  $('confirm-message').textContent = `Setting up ${email}. Just a moment.`;
+  $('confirm-actions').hidden = true;
+  $('confirm-status').textContent = '';
+  $('confirm-modal').hidden = false;
+}
 function hideConfirmation() {
+  const panel = document.querySelector('.confirm-panel');
+  panel.classList.remove('loading');
+  $('confirm-actions').hidden = false;
+  document.querySelector('[data-act="auth-test-confirm"]').hidden = true;
   $('confirm-modal').hidden = true;
+}
+function enterAuthTestWorkspace() {
+  hideConfirmation();
+  document.body.classList.remove('auth-screen');
+  $('auth').hidden = true;
+  me = {id: 'auth-test-user', name: 'Test user'};
+  entries = demoEntries();
+  demoMode = true;
+  deriveLocalRates();
+  view = 'log';
+  render();
 }
 async function resendConfirmation() {
   const email = $('confirm-email').textContent.trim();
   if (!email) return;
+  if (authTest) {
+    $('confirm-status').textContent = 'Test mode: no email was sent.';
+    return;
+  }
   const button = document.querySelector('[data-act="auth-resend"]');
   button.disabled = true;
   $('confirm-status').textContent = 'Sending…';
@@ -888,7 +927,17 @@ async function authGo() {
     if (password.length < 6) $('a-pass').classList.add('invalid');
     $('a-err').textContent = authMode === 'signup' ? 'Enter your name, an email, and a password of 6 or more characters.' : 'Enter your email and password.'; return;
   }
+  if (authTest) {
+    if (authMode === 'signup') {
+      showConfirmationLoading(email);
+      window.setTimeout(() => showConfirmation(email), 900);
+    } else {
+      enterAuthTestWorkspace();
+    }
+    return;
+  }
   try {
+    if (authMode === 'signup') showConfirmationLoading(email);
     const res = authMode === 'signup'
       ? await sb.auth.signUp({email, password, options: {data: {name}, emailRedirectTo: confirmationRedirectUrl()}})
       : await sb.auth.signInWithPassword({email, password});
@@ -901,10 +950,16 @@ async function authGo() {
     renderLoading();
     await enter();
   } catch (e) {
+    hideConfirmation();
     showAuth('Could not connect. Check your connection and try again.');
   }
 }
 async function authGoogle() {
+  if (authTest) {
+    showConfirmationLoading('your Google account');
+    window.setTimeout(enterAuthTestWorkspace, 900);
+    return;
+  }
   $('a-err').textContent = '';
   $('a-go').disabled = true;
   document.querySelector('[data-act="auth-google"]').disabled = true;
@@ -945,6 +1000,7 @@ async function removeEntry(id) {
   }
 }
 async function boot() {
+  if (authTest) { showAuth(); return; }
   if (!cloud) { entries = loadEntries(); deriveLocalRates(); render(); return; }
   renderLoading();
   const {data} = await sb.auth.getSession();
