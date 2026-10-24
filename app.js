@@ -82,11 +82,14 @@ const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const authTest = ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
   new URLSearchParams(window.location.search).has('auth-test');
-let entries = [], me = null, people = [], demoMode = false;
+let entries = [], me = null, people = [], demoMode = false, organization = null;
 const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let realtimeChannel = null, realtimeState = 'DISCONNECTED';
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
+let pendingInvite = new URLSearchParams(window.location.search).get('invite') || '';
+const isOwner = () => me && me.role === 'owner';
+const isSewer = () => me && me.role === 'sewer';
 let wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
 month.setDate(1);
 
@@ -248,6 +251,82 @@ function logView() {
   return out + '<button class="fab" data-act="add">Add entry</button>';
 }
 
+function myLogView() {
+  const previous = entries;
+  entries = entries.filter(e => e.sewer_id === me.id || e.created_by === me.id);
+  const output = logView().replace('<h1 class="page-title">Log</h1>', '<h1 class="page-title">My logs</h1>');
+  entries = previous;
+  return output;
+}
+
+function mySalaryView() {
+  const s = swWeek, end = addDays(s, 6), a = ymd(s), b = ymd(end);
+  const list = entries.filter(e => e.sewer_id === me.id && e.date >= a && e.date <= b);
+  const total = list.reduce((sum, e) => sum + e.qty * e.pay, 0);
+  const pieces = list.reduce((sum, e) => sum + e.qty, 0);
+  const bySupplier = group(list, 'client');
+  const detail = Object.keys(bySupplier).sort().map(supplier => {
+    const rows = bySupplier[supplier].slice().sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
+    const supplierTotal = rows.reduce((sum, e) => sum + e.qty * e.pay, 0);
+    return `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong><span>${peso(supplierTotal)}</span></div><div class="kids">` +
+      rows.map(e => `<div class="slog"><div><div>${esc(e.item)}</div><div class="muted">${esc(e.color)}, ${esc(e.size)}, ${dayLabel(e.date)}</div></div>
+        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') +
+      '</div></div>';
+  }).join('');
+  const current = a === ymd(weekStart(new Date()));
+  return `<h1 class="page-title">My salary</h1>
+    <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(end)}${current ? ' (this week)' : ''}</span>
+      <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
+      <button class="btn" data-act="sw" data-d="1" aria-label="Next week" ${current ? 'disabled' : ''}>›</button></div>
+    <div class="stats"><div class="stat"><span class="muted">Salary</span><b>${peso(total)}</b></div><div class="stat"><span class="muted">Pieces</span><b>${pieces.toLocaleString()}</b></div></div>
+    ${detail || '<p class="empty">No logs this week.</p>'}`;
+}
+
+function myFinanceView() {
+  const list = entries.filter(e => e.sewer_id === me.id);
+  const byDay = {};
+  list.forEach(e => byDay[e.date] = (byDay[e.date] || 0) + e.qty * e.pay);
+  const y = month.getFullYear(), m = month.getMonth(), days = new Date(y, m + 1, 0).getDate();
+  let cells = '<div class="cal-label">Wk</div>' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  const first = new Date(y, m, 1), last = new Date(y, m, days);
+  let monthTotal = 0;
+  for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
+    const wk = ymd(ws), wsel = sel && sel.t === 'week' && sel.d === wk;
+    cells += `<button class="wbtn ${wsel ? 'on' : ''}" data-act="week" data-d="${wk}" title="See this week" aria-label="Week of ${short(ws)}">${CHEV}</button>`;
+    for (let i = 0; i < 7; i++) {
+      const dt = addDays(ws, i), key = ymd(dt);
+      if (dt.getMonth() !== m) { cells += '<div class="cell off"></div>'; continue; }
+      const value = byDay[key] || 0;
+      monthTotal += value;
+      cells += `<button class="cell ${value ? 'has' : ''} ${wsel ? 'wsel' : ''} ${sel && sel.t === 'day' && sel.d === key ? 'dsel' : ''}" data-act="day" data-d="${key}"><span>${dt.getDate()}</span><b>${value ? k(value) : ''}</b></button>`;
+    }
+  }
+  const detail = myFinanceDetail(list);
+  return `<h1 class="page-title">My finance</h1><div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
+    <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button><button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
+    <div class="stats"><div class="stat"><span class="muted">Your earnings</span><b>${peso(monthTotal)}</b></div></div>
+    <div class="cal" style="margin-top:20px">${cells}</div><div id="detail">${detail}</div>`;
+}
+
+function myFinanceDetail(list) {
+  if (!sel) return '<p class="empty">Tap a week or day to see your earnings and logs.</p>';
+  const week = sel.t === 'week', start = parse(sel.d), end = ymd(addDays(start, 6));
+  const rows = week ? list.filter(e => e.date >= sel.d && e.date <= end) : list.filter(e => e.date === sel.d);
+  const total = rows.reduce((sum, e) => sum + e.qty * e.pay, 0);
+  const pieces = rows.reduce((sum, e) => sum + e.qty, 0);
+  const title = week ? `Week of ${short(start)} to ${short(addDays(start, 6))}` :
+    start.toLocaleDateString('en-PH', {weekday:'long', month:'long', day:'numeric'});
+  const grouped = group(rows, 'client');
+  const logs = Object.keys(grouped).sort().map(supplier => `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong></div><div class="kids">` +
+    grouped[supplier].slice().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).map(e =>
+      `<div class="slog"><div><div>${esc(e.item)}</div><div class="muted">${esc(e.color)}, ${esc(e.size)}, ${dayLabel(e.date)}</div></div>
+      <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') +
+    '</div></div>').join('');
+  return `<h2 style="margin-top:32px;font-size:1.2rem">${title}</h2>
+    <div class="stats"><div class="stat"><span class="muted">Earnings</span><b>${peso(total)}</b></div><div class="stat"><span class="muted">Pieces</span><b>${pieces.toLocaleString()}</b></div></div>
+    ${logs || `<p class="empty">Nothing was logged ${week ? 'this week' : 'this day'}.</p>`}`;
+}
+
 // ---- Finance ----
 function sewerBlock(list) {
   const pay = {};
@@ -405,7 +484,7 @@ function setupView() {
       ${rateRows.length ? rateRows.map(r => `<div class="rate-card"><div><strong>${esc(r.supplier)}</strong><div class="muted">${esc(r.item)} · ${esc(r.size)}</div></div><div class="r"><strong>${peso(r.price)}</strong><div class="muted">pay ${peso(r.pay)}</div></div><button class="btn" data-act="rate-edit" data-supplier="${esc(r.supplier)}" data-item="${esc(r.item)}" data-size="${esc(r.size)}">Edit</button></div>`).join('') : '<p class="empty">No rates yet.</p>'}
     </section>${cards('item', 'Items')}${cards('size', 'Sizes')}${cards('color', 'Colors')}${cards('supplier', 'Suppliers')}`;
 }
-const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView};
+const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView, 'my-log': myLogView, 'my-finance': myFinanceView, 'my-salary': mySalaryView};
 function renderTopbar() {
   const topbar = $('topbar');
   if (!cloud || !me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
@@ -416,32 +495,38 @@ function renderTopbar() {
     </span><details class="profile-menu">
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
-      <strong>${esc(me.name)}</strong>
+      <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? 'Owner' : 'Sewer'}</span></strong>
+      ${isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
       <button class="menu-btn" data-act="demo">${demoMode ? 'Exit demo mode' : 'Try demo data'}</button>
       <button class="menu-btn" data-act="logout">Log out</button>
     </div>
   </details>`;
 }
 function renderLoading() {
+  document.body.classList.add('loading-screen');
+  $('boot-loader').hidden = false;
   const nav = document.querySelector('nav');
   nav.classList.add('loading');
   nav.setAttribute('aria-busy', 'true');
   const topbar = $('topbar');
   topbar.hidden = false;
   topbar.innerHTML = '<div class="topbar-skeleton"></div>';
-  $('main').innerHTML = `<div class="app-skeleton" aria-live="polite" aria-label="Loading your workspace">
-    <div class="skeleton-heading"></div>
-    <div class="skeleton-subheading"></div>
-    <div class="skeleton-toolbar"></div>
-    <div class="skeleton-day"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-day"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-  </div>`;
+  $('main').innerHTML = '';
+}
+function hideLoading() {
+  document.body.classList.remove('loading-screen');
+  $('boot-loader').hidden = true;
+}
+function withTimeout(promise, milliseconds, message) {
+  let timer;
+  const timeout = new Promise((resolve, reject) => {
+    timer = window.setTimeout(() => reject(new Error(message)), milliseconds);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 function render() {
+  if (isOwner() && ['my-log', 'my-finance', 'my-salary'].includes(view)) view = 'log';
+  if (isSewer() && !['my-log', 'my-finance', 'my-salary'].includes(view)) view = 'my-log';
   const nextView = view;
   document.getElementById('main').innerHTML = views[nextView]();
   renderTopbar();
@@ -449,6 +534,9 @@ function render() {
   nav.classList.remove('loading');
   nav.removeAttribute('aria-busy');
   document.querySelectorAll('nav [data-view]').forEach(b => {
+    const ownerOnly = ['log', 'sewers', 'suppliers', 'finance', 'setup'].includes(b.dataset.view);
+    const sewerOnly = ['my-log', 'my-finance', 'my-salary'].includes(b.dataset.view);
+    b.hidden = (ownerOnly && !isOwner()) || (sewerOnly && !isSewer());
     if (b.dataset.view === nextView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
 }
@@ -541,14 +629,15 @@ async function saveEntry() {
   const r = currentRate(e);
   e.price = r.price; e.pay = r.pay;
   if (cloud) {
-    const {error} = await sb.from('entries').insert({date: e.date, item: e.item, color: e.color, size: e.size, client: e.client,
-      qty: e.qty, price: e.price, pay: e.pay, sewer_id: me.id});
+    const sewerId = isOwner() && wizard.values.sewer_id ? wizard.values.sewer_id : me.id;
+    const {error} = await sb.from('entries').insert({organization_id: organization.id, created_by: me.id, date: e.date, item: e.item, color: e.color, size: e.size, client: e.client,
+      qty: e.qty, price: e.price, pay: e.pay, sewer_id: sewerId});
     if (error) { $('err').textContent = error.message; return; }
     const additions = [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]]
       .filter(([kind, value]) => !catalog[kind].includes(value))
-      .map(([kind, value]) => ({kind, value, created_by: me.id}));
+      .map(([kind, value]) => ({kind, value, organization_id: organization.id, created_by: me.id}));
     if (additions.length) {
-      const {error: catalogError} = await sb.from('tally_catalog_values').upsert(additions, {onConflict:'kind,value'});
+      const {error: catalogError} = await sb.from('tally_catalog_values').upsert(additions, {onConflict:'organization_id,kind,value'});
       if (catalogError) { $('err').textContent = catalogError.message; return; }
     }
     await refresh();
@@ -610,6 +699,15 @@ document.addEventListener('click', ev => {
   else if (d.act === 'auth-resend') { resendConfirmation(); return; }
   else if (d.act === 'auth-back') { hideConfirmation(); setAuthMode('login'); return; }
   else if (d.act === 'auth-test-confirm') { enterAuthTestWorkspace(); return; }
+  else if (d.act === 'create-org') { showCreateOrganization(); return; }
+  else if (d.act === 'create-submit') { createOrganization(); return; }
+  else if (d.act === 'join-org') { showJoinOrganization(); return; }
+  else if (d.act === 'join-submit') { joinOrganization(); return; }
+  else if (d.act === 'scan-invite') { scanInvite(); return; }
+  else if (d.act === 'onboarding-back') { showOnboarding(); return; }
+  else if (d.act === 'onboarding-exit') { exitOnboarding(); return; }
+  else if (d.act === 'onboarding-close') { hideOnboarding(); return; }
+  else if (d.act === 'invite') { createInvite(); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'week' || d.act === 'day') {
@@ -626,6 +724,10 @@ document.addEventListener('click', ev => {
 });
 document.addEventListener('input', ev => {
   if (ev.target.matches('.in')) ev.target.classList.remove('invalid');
+  if (ev.target.id === 'join-token') {
+    const digits = ev.target.value.replace(/\D/g, '').slice(0, 6);
+    ev.target.value = digits.length > 3 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : digits;
+  }
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Enter' || ev.target.tagName !== 'INPUT') return;
@@ -675,8 +777,8 @@ async function saveRate() {
   const previousEntries = affected.map(e => ({e, price:e.price, pay:e.pay}));
   affected.forEach(e => { e.price = price; e.pay = pay; });
   if (cloud) {
-    const {error} = await sb.from('tally_rates').upsert({supplier:r.supplier, item:r.item, size:r.size, price, pay, created_by:me.id},
-      {onConflict:'supplier,item,size'});
+    const {error} = await sb.from('tally_rates').upsert({organization_id:organization.id, supplier:r.supplier, item:r.item, size:r.size, price, pay, created_by:me.id},
+      {onConflict:'organization_id,supplier,item,size'});
     if (error) {
       if (previousRate) rates[existing] = previousRate; else rates.splice(rates.length - 1, 1);
       previousEntries.forEach(x => { x.e.price = x.price; x.e.pay = x.pay; });
@@ -701,15 +803,140 @@ async function addCatalogValue(kind) {
   const clean = value.trim();
   if (!catalog[kind].some(v => v.toLowerCase() === clean.toLowerCase())) catalog[kind].push(clean);
   if (cloud) {
-    const {error} = await sb.from('tally_catalog_values').insert({kind, value:clean, created_by:me.id});
+    const {error} = await sb.from('tally_catalog_values').insert({organization_id:organization.id, kind, value:clean, created_by:me.id});
     if (error && error.code !== '23505') { alert('Could not add option: ' + error.message); return; }
   } else saveLocalSetup();
   render();
 }
 // ---- Cloud (Supabase) ----
-const canDelete = () => true;
+const canDelete = () => isOwner();
 let authMode = 'login';
+function showOnboarding() {
+  hideLoading();
+  $('onboarding').hidden = false;
+  $('onboarding-status').textContent = '';
+  $('onboarding-content').innerHTML = `<div class="onboarding-actions">
+    <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>Create an organization</strong><span class="muted">Set up your sewing business and invite your team.</span></span><span class="onboarding-arrow">→</span></button>
+    <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>Join an organization</strong><span class="muted">Scan the invitation from your owner to get started.</span></span><span class="onboarding-arrow">→</span></button>
+  </div>`;
+  if (pendingInvite) showJoinOrganization();
+}
+function hideOnboarding() { $('onboarding').hidden = true; }
+async function exitOnboarding() {
+  if (cloud) await sb.auth.signOut();
+  me = null;
+  organization = null;
+  entries = [];
+  people = [];
+  profileNames.clear();
+  hideOnboarding();
+  setAuthMode('login');
+  showAuth();
+}
+function showCreateOrganization() {
+  $('onboarding-content').innerHTML = `<div class="onboarding-form">
+    <label class="required" for="organization-name">Organization name</label>
+    <input class="in" id="organization-name" placeholder="e.g. Maria's Sewing Shop" maxlength="120" autofocus>
+    <button class="primary" data-act="create-submit">Create organization</button>
+    <button class="textbtn" data-act="onboarding-back">Back</button>
+  </div>`;
+}
+async function createOrganization() {
+  const name = $('organization-name').value.trim();
+  if (!name) {
+    $('organization-name').classList.add('invalid');
+    $('onboarding-status').textContent = 'Enter an organization name.';
+    return;
+  }
+  $('onboarding-status').textContent = 'Creating your organization…';
+  const {data, error} = await sb.rpc('create_organization', {organization_name: name.trim()});
+  if (error) { $('onboarding-status').textContent = error.message; return; }
+  organization = data;
+  await enter();
+}
+function showJoinOrganization() {
+  $('onboarding-content').innerHTML = `<div class="onboarding-form">
+    <label class="required" for="join-token">Six-digit invite code</label>
+    <input class="in invite-code-input" id="join-token" inputmode="numeric" maxlength="7" placeholder="000-000" value="${esc(pendingInvite)}">
+    <button class="primary" data-act="join-submit">Join organization</button>
+    <button class="btn" data-act="scan-invite">Scan QR code</button>
+    <div id="qr-reader" class="qr-reader" hidden></div>
+    <button class="textbtn" data-act="onboarding-back">Back</button>
+  </div>`;
+}
+function scanInvite() {
+  if (typeof Html5Qrcode !== 'function') {
+    $('onboarding-status').textContent = 'QR scanning is unavailable. Enter the six-digit code instead.';
+    return;
+  }
+  const reader = $('qr-reader');
+  reader.hidden = false;
+  const scanner = new Html5Qrcode('qr-reader');
+  window.tallyQrScanner = scanner;
+  scanner.start(
+    {facingMode: 'environment'},
+    {fps: 10, qrbox: 220},
+    text => {
+      const digits = text.replace(/\D/g, '').slice(-6);
+      if (digits.length !== 6) {
+        $('onboarding-status').textContent = 'That QR code is not a Tally invite code.';
+        return;
+      }
+      $('join-token').value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+      scanner.stop().then(() => {
+        reader.hidden = true;
+        window.tallyQrScanner = null;
+      }).catch(() => {});
+    },
+    () => {}
+  ).catch(error => {
+    reader.hidden = true;
+    window.tallyQrScanner = null;
+    $('onboarding-status').textContent = 'Could not access the camera. Enter the six-digit code instead.';
+    console.error('Could not start QR scanner:', error);
+  });
+}
+async function joinOrganization() {
+  const token = $('join-token').value.replace(/\D/g, '');
+  if (!/^\d{6}$/.test(token)) { $('onboarding-status').textContent = 'Enter the six digits shown by the owner.'; return; }
+  $('onboarding-status').textContent = 'Joining organization…';
+  const {data, error} = await sb.rpc('accept_organization_invite', {raw_token: token});
+  if (error) { $('onboarding-status').textContent = error.message; return; }
+  organization = data;
+  pendingInvite = '';
+  await enter();
+}
+async function createInvite() {
+  if (!organization || !organization.id) {
+    $('onboarding-status').textContent = 'Your organization is not loaded yet. Please refresh and try again.';
+    $('onboarding').hidden = false;
+    return;
+  }
+  const {data, error} = await sb.rpc('create_organization_invite', {target_organization: organization.id});
+  if (error) {
+    const message = /gen_random_bytes|digest/i.test(error.message || '')
+      ? 'The Supabase invite function is still using the old QR-code version. Run the updated invite SQL migration in the Supabase SQL Editor, then refresh Tally.'
+      : error.message;
+    alert('Could not create invite: ' + message);
+    return;
+  }
+  if (!data || !data[0] || !data[0].invite_token) {
+    alert('Could not create invite: Supabase returned no invite token. Rerun the latest supabase-schema.sql migration.');
+    return;
+  }
+  const token = data[0].invite_token;
+  const displayCode = `${token.slice(0, 3)}-${token.slice(3)}`;
+  navigator.clipboard && navigator.clipboard.writeText(displayCode).catch(() => {});
+  $('onboarding').hidden = false;
+  $('onboarding-content').innerHTML = `<div class="invite-code-display"><span>Invite code</span><div class="invite-qr" id="invite-qr"></div><strong>${esc(displayCode)}</strong><small>Scan this QR code or share the six-digit code. It expires in 24 hours.</small></div>
+    <button class="primary" data-act="invite">Generate another code</button>
+    <button class="textbtn" data-act="onboarding-close">Close</button>`;
+  if (typeof QRCode === 'function') {
+    new QRCode($('invite-qr'), {text: token, width: 220, height: 220});
+  }
+}
 function showAuth(msg) {
+  hideLoading();
   const nav = document.querySelector('nav');
   document.body.classList.add('auth-screen');
   nav.classList.remove('loading');
@@ -728,6 +955,7 @@ function showAuthError(message, ids = []) {
   box.classList.add('shake');
 }
 function hideAuth() {
+  hideLoading();
   document.body.classList.remove('auth-screen');
   $('auth').hidden = true;
 }
@@ -782,7 +1010,8 @@ function enterAuthTestWorkspace() {
   hideConfirmation();
   document.body.classList.remove('auth-screen');
   $('auth').hidden = true;
-  me = {id: 'auth-test-user', name: 'Test user'};
+  me = {id: 'auth-test-user', name: 'Test user', role: 'owner'};
+  organization = {id: 'auth-test-org', name: 'Test organization'};
   entries = demoEntries();
   demoMode = true;
   deriveLocalRates();
@@ -805,7 +1034,8 @@ async function resendConfirmation() {
 }
 async function refresh() {
   const {data, error} = await sb.from('entries')
-    .select('id, date, item, color, size, qty, client, price, pay, sewer_id, profiles(name)')
+    .select('id, organization_id, created_by, date, item, color, size, qty, client, price, pay, sewer_id, profiles(name)')
+    .eq('organization_id', organization.id)
     .order('date', {ascending: false});
   if (error) { alert('Could not load entries: ' + error.message); return; }
   profileNames.clear();
@@ -814,8 +1044,8 @@ async function refresh() {
   });
   entries = data.map(entryFromRow);
   const [rateRes, catalogRes] = await Promise.all([
-    sb.from('tally_rates').select('supplier, item, size, price, pay'),
-    sb.from('tally_catalog_values').select('kind, value').order('value')
+    sb.from('tally_rates').select('supplier, item, size, price, pay').eq('organization_id', organization.id),
+    sb.from('tally_catalog_values').select('kind, value').eq('organization_id', organization.id).order('value')
   ]);
   if (rateRes.error) { alert('Could not load rates: ' + rateRes.error.message); return; }
   if (catalogRes.error) { alert('Could not load catalog: ' + catalogRes.error.message); return; }
@@ -825,7 +1055,7 @@ async function refresh() {
   enrichEntries();
 }
 function entryFromRow(r) {
-  return {id: r.id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
+  return {id: r.id, organization_id:r.organization_id, created_by:r.created_by, sewer_id:r.sewer_id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
     price: Number(r.price), pay: Number(r.pay),
     sewer: r.profiles ? r.profiles.name : (r.sewer_id === me.id ? me.name : profileNames.get(r.sewer_id) || 'Unknown sewer')};
 }
@@ -906,18 +1136,39 @@ async function enter() {
   hideAuth();
   renderLoading();
   const {data: u} = await sb.auth.getUser();
-  const {data: p, error} = await sb.from('profiles').select('id, name').eq('id', u.user.id).single();
-  if (error || !p) {
+  if (!u || !u.user || !u.user.id) {
+    showAuth('Your session expired. Please log in again.');
+    return;
+  }
+  const {data: p, error} = await sb.from('profiles').select('id, name, role, organization_id, active').eq('id', u.user.id).single();
+  if (error || !p || p.active === false) {
     await sb.auth.signOut();
     showAuth('Could not load your profile. Make sure your Supabase profiles table and signup trigger are configured.');
     return;
   }
+  if (!p.organization_id || !p.role) {
+    me = p;
+    hideAuth();
+    showOnboarding();
+    return;
+  }
+  const {data: org, error: orgError} = await sb.from('organizations').select('id, name, created_by').eq('id', p.organization_id).single();
+  if (orgError || !org) {
+    showAuth('Could not load your organization. Ask the owner to check the organization setup.');
+    return;
+  }
+  if (!org.id) {
+    showAuth('Your organization record is incomplete. Ask the owner to recreate it.');
+    return;
+  }
+  organization = org;
   me = p;
-  people = [p];
+  const {data: memberRows} = await sb.from('profiles').select('id, name, role, active').eq('organization_id', organization.id).eq('active', true);
+  people = memberRows || [p];
   profileNames.set(p.id, p.name);
   await refresh();
   subscribeRealtime();
-  hideAuth(); view = 'log'; render();
+  hideAuth(); hideOnboarding(); view = isOwner() ? 'log' : 'my-log'; render();
 }
 async function authGo() {
   const email = $('a-email').value.trim(), password = $('a-pass').value, name = $('a-name').value.trim();
@@ -965,7 +1216,10 @@ async function authGoogle() {
   document.querySelector('[data-act="auth-google"]').disabled = true;
   const {error} = await sb.auth.signInWithOAuth({
     provider: 'google',
-    options: {redirectTo: window.location.origin + window.location.pathname}
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: {prompt: 'select_account'}
+    }
   });
   if (error) {
     $('a-go').disabled = false;
@@ -976,7 +1230,7 @@ async function authGoogle() {
 async function logout() {
   await unsubscribeRealtime();
   await sb.auth.signOut();
-  me = null; entries = []; people = []; profileNames.clear(); demoMode = false;
+  me = null; entries = []; people = []; profileNames.clear(); organization = null; demoMode = false;
   setAuthMode('login'); showAuth(); renderTopbar();
 }
 async function removeEntry(id) {
@@ -1001,10 +1255,25 @@ async function removeEntry(id) {
 }
 async function boot() {
   if (authTest) { showAuth(); return; }
-  if (!cloud) { entries = loadEntries(); deriveLocalRates(); render(); return; }
+  if (!cloud) { me = {id: 'local-user', name: 'Local owner', role: 'owner'}; organization = {id: 'local-org', name: 'Local workspace'}; entries = loadEntries(); deriveLocalRates(); render(); return; }
   renderLoading();
-  const {data} = await sb.auth.getSession();
-  if (data.session) await enter(); else showAuth();
+  try {
+    const {data, error} = await withTimeout(sb.auth.getSession(), 8000, 'Supabase took too long to respond.');
+    if (error) {
+      if (/invalid api key/i.test(error.message || '')) {
+        throw new Error('Supabase rejected the publishable API key in config.js. Replace it with the current key from Project Settings > API.');
+      }
+      throw error;
+    }
+    if (data.session) {
+      await withTimeout(enter(), 12000, 'Could not load your workspace in time.');
+    } else {
+      showAuth();
+    }
+  } catch (error) {
+    console.error('Tally startup failed:', error);
+    showAuth(error.message || 'Tally could not connect to Supabase. Check your connection and try again.');
+  }
 }
 initMeshBackground();
 boot();

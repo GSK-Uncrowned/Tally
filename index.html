@@ -9,6 +9,9 @@
 </head>
 <body>
 <canvas id="mesh-background" aria-hidden="true"></canvas>
+<div id="boot-loader" hidden aria-live="polite" aria-label="Loading Tally">
+  <span class="tally-loader">T</span>
+</div>
 <div class="app">
   <nav>
     <div class="brand">Tally</div>
@@ -17,6 +20,9 @@
     <button data-view="suppliers">Suppliers</button>
     <button data-view="finance">Finance</button>
     <button data-view="setup">Setup</button>
+    <button data-view="my-log">My logs</button>
+    <button data-view="my-finance">Finance</button>
+    <button data-view="my-salary">Salary</button>
   </nav>
   <div class="workspace">
     <header class="topbar" id="topbar" hidden></header>
@@ -67,7 +73,19 @@
     <p id="confirm-status" role="status"></p>
   </section>
 </div>
+<div id="onboarding" class="confirm-modal" hidden>
+  <section class="confirm-panel onboarding-panel" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <button class="onboarding-close" data-act="onboarding-exit" aria-label="Exit organization setup">&times;</button>
+    <div class="auth-brand">Tally</div>
+    <h2 id="onboarding-title">Set up your workspace</h2>
+    <p class="muted">Create your organization as the owner, or join one using the invite from its owner.</p>
+    <div id="onboarding-content"></div>
+    <p id="onboarding-status" role="alert"></p>
+  </section>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

@@ -12,6 +12,7 @@ Built for a real family sewing business. Work in progress.
 - **Finance:** a month calendar showing income per day. Tap a week or a day to see its breakdown by supplier. It shows income, what was paid to sewers, and profit.
 - **Setup:** manage catalog choices and rates keyed by supplier, item, and size. A Needs attention section flags combinations used in entries that do not have a rate yet.
 - **Demo data:** a button on the Log tab previews sample entries so you can try everything without saving them to the cloud, and exits back to your records.
+- **Organizations:** signed-in users can create an organization as an owner or join one as a sewer through an expiring six-digit invitation code. Owners get the management dashboard; sewers get private logs, salary, and earnings finance views.
 
 It uses a black-and-white minimalist design, works on phones and desktops, and follows the system light or dark theme.
 
@@ -20,6 +21,7 @@ It uses a black-and-white minimalist design, works on phones and desktops, and f
 - Plain HTML, CSS, and JavaScript in a single file. No framework and no build step.
 - When Supabase is configured, data is saved online so signed-in users can share it. Without Supabase configuration, data is saved in the browser (localStorage).
 - In cloud mode, the app uses Supabase Realtime to keep entries, rates, and catalog options synchronized across open devices. Realtime must be enabled for those tables in the Supabase project.
+- Apply [`supabase-schema.sql`](./supabase-schema.sql) in the Supabase SQL editor before using organization onboarding. It adds organization membership, six-digit invite functions, and role-aware RLS.
 
 ## Run it
 
