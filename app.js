@@ -971,6 +971,9 @@ function setAuthMode(m) {
     ? 'Already have an account? <strong>Log in</strong>'
     : "Don't have an account? <strong>Sign up</strong>";
   $('a-sub').textContent = m === 'signup' ? 'Create your account' : 'Log in to continue';
+  $('a-auth-hint').textContent = m === 'signup'
+    ? 'You can also create an account with Google.'
+    : 'Signed up with Google? Use Continue with Google instead of a password.';
   $('a-err').textContent = '';
 }
 function confirmationRedirectUrl() {

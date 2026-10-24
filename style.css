@@ -229,6 +229,7 @@ nav.loading{border-color:var(--line)}
 .oauth-btn:hover{border-color:var(--muted);background:var(--hl)}
 .oauth-btn:disabled,.authbox .primary:disabled{opacity:.55;cursor:wait}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .authbox .primary{background:#e8e5df;color:#171717}}
+.auth-hint{margin:9px 0 0;font-size:.8rem;line-height:1.4}
 #a-err{min-height:1.3em;margin:10px 0 0;font-size:.9rem}
 .confirm-modal{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.38);backdrop-filter:blur(8px)}
 .confirm-panel{width:min(390px,100%);padding:28px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.28)}
