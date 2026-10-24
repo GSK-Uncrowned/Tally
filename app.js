@@ -623,32 +623,58 @@ function validateRequired(ids) {
   }
   return true;
 }
+let saving = false;
 async function saveEntry() {
-  const v = wizard.values, e = {date: wizard.date, item: v.item, color: v.color || 'Any', size: v.size || 'Any',
-    client: v.client || 'Unknown', sewer: cloud ? me.name : '', qty: Number(v.qty)};
-  const r = currentRate(e);
-  e.price = r.price; e.pay = r.pay;
-  if (cloud) {
-    const sewerId = isOwner() && wizard.values.sewer_id ? wizard.values.sewer_id : me.id;
-    const {error} = await sb.from('entries').insert({organization_id: organization.id, created_by: me.id, date: e.date, item: e.item, color: e.color, size: e.size, client: e.client,
-      qty: e.qty, price: e.price, pay: e.pay, sewer_id: sewerId});
-    if (error) { $('err').textContent = error.message; return; }
+  if (saving) return;
+  saving = true;
+  try {
+    const v = wizard.values, e = {date: wizard.date, item: v.item, color: v.color || 'Any', size: v.size || 'Any',
+      client: v.client || 'Unknown', sewer: cloud ? me.name : '', qty: Number(v.qty)};
+    const r = currentRate(e);
+    e.price = r.price; e.pay = r.pay;
+
+    if (!cloud) {
+      e.id = Date.now(); entries.push(e);
+      [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
+        if (!catalog[kind].includes(value)) catalog[kind].push(value);
+      });
+      saveEntries(); saveLocalSetup();
+      logWeek = weekStart(parse(e.date)); $('dlg').close(); render();
+      return;
+    }
+
+    const sewerId = isOwner() && v.sewer_id ? v.sewer_id : me.id;
+    const sw = people.find(p => p.id === sewerId);
+    const tmp = {...e, id: 'tmp-' + Date.now(), sewer_id: sewerId, sewer: sw ? sw.name : me.name};
+
+    // show it and close the modal right away
+    entries.push(tmp);
+    logWeek = weekStart(parse(e.date));
+    $('dlg').close(); render();
+
+    const {error} = await sb.from('entries').insert({organization_id: organization.id, created_by: me.id, date: e.date, item: e.item,
+      color: e.color, size: e.size, client: e.client, qty: e.qty, price: e.price, pay: e.pay, sewer_id: sewerId});
+    if (error) {
+      entries = entries.filter(x => x.id !== tmp.id);
+      render();
+      alert('Could not save entry: ' + error.message);
+      return;
+    }
+
     const additions = [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]]
       .filter(([kind, value]) => !catalog[kind].includes(value))
       .map(([kind, value]) => ({kind, value, organization_id: organization.id, created_by: me.id}));
     if (additions.length) {
       const {error: catalogError} = await sb.from('tally_catalog_values').upsert(additions, {onConflict:'organization_id,kind,value'});
-      if (catalogError) { $('err').textContent = catalogError.message; return; }
+      if (catalogError) console.warn('Catalog not updated:', catalogError.message); // entry is saved, so don't treat as failure
     }
+
+    entries = entries.filter(x => x.id !== tmp.id);
     await refresh();
-  } else {
-    e.id = Date.now(); entries.push(e);
-    [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
-      if (!catalog[kind].includes(value)) catalog[kind].push(value);
-    });
-    saveEntries(); saveLocalSetup();
+    render();
+  } finally {
+    saving = false;
   }
-  logWeek = weekStart(parse(e.date)); $('dlg').close(); render();
 }
 
 document.addEventListener('click', ev => {
@@ -1035,11 +1061,24 @@ async function resendConfirmation() {
   button.disabled = false;
   $('confirm-status').textContent = error ? error.message : 'A new confirmation email is on its way.';
 }
+async function fetchAllEntries() {
+  const PAGE = 1000; // Supabase returns at most 1000 rows per request, so load in pages
+  let all = [];
+  for (let from = 0; ; from += PAGE) {
+    const {data, error} = await sb.from('entries')
+      .select('id, organization_id, created_by, date, item, color, size, qty, client, price, pay, sewer_id, profiles(name)')
+      .eq('organization_id', organization.id)
+      .order('date', {ascending: false})
+      .order('id', {ascending: false})
+      .range(from, from + PAGE - 1);
+    if (error) return {error};
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+  }
+  return {data: all};
+}
 async function refresh() {
-  const {data, error} = await sb.from('entries')
-    .select('id, organization_id, created_by, date, item, color, size, qty, client, price, pay, sewer_id, profiles(name)')
-    .eq('organization_id', organization.id)
-    .order('date', {ascending: false});
+  const {data, error} = await fetchAllEntries();
   if (error) { alert('Could not load entries: ' + error.message); return; }
   profileNames.clear();
   data.forEach(r => {
@@ -1237,6 +1276,7 @@ async function logout() {
   setAuthMode('login'); showAuth(); renderTopbar();
 }
 async function removeEntry(id) {
+  if (String(id).startsWith('tmp-')) return; // still saving, nothing to delete yet
   const removed = entries.find(e => e.id == id);
   if (!removed) return;
 
@@ -1244,16 +1284,15 @@ async function removeEntry(id) {
   pendingDel = null;
   render();
 
-  if (cloud) {
-    const {error} = await sb.from('entries').delete().eq('id', id);
-    if (error) {
-      entries.push(removed);
-      entries.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
-      render();
-      alert('Could not delete entry: ' + error.message);
-    }
-  } else {
-    saveEntries();
+  if (!cloud) { saveEntries(); return; }
+
+  const {data, error} = await sb.from('entries').delete().eq('id', id).select();
+  if (error || !data || data.length === 0) {
+    alert(error
+      ? 'Could not delete entry: ' + error.message
+      : 'Could not delete this entry. You may not have permission, or it was already deleted.');
+    await refresh(); // resync with the real data instead of guessing
+    render();
   }
 }
 async function boot() {
