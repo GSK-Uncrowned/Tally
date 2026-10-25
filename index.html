@@ -7,11 +7,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="loading-screen">
 <canvas id="mesh-background" aria-hidden="true"></canvas>
-<div id="boot-loader" hidden aria-live="polite" aria-label="Loading Tally">
-  <span class="tally-loader">T</span>
-</div>
+<div id="busy" role="status" aria-live="polite" aria-label="Loading Tally"><span class="tally-loader" aria-hidden="true">T</span></div>
 <div class="app">
   <nav>
     <div class="brand">Tally</div>
@@ -53,7 +51,6 @@
     <label class="required" for="a-name" id="a-name-l" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
     <label class="required" for="a-email">Email</label><input class="in" id="a-email" type="email" autocomplete="email" required>
     <label class="required" for="a-pass">Password</label><input class="in" id="a-pass" type="password" autocomplete="current-password" required>
-    <p class="auth-hint muted" id="a-auth-hint"></p>
     <p id="a-err" role="alert"></p>
     <button class="primary" id="a-go" data-act="auth-go">Log in</button>
     <div class="auth-divider"><span>or</span></div>

@@ -502,20 +502,27 @@ function renderTopbar() {
     </div>
   </details>`;
 }
-function renderLoading() {
+let busyText = '';
+function showBusy(text) {
+  const b = $('busy');
+  if (busyText !== (text || '') || !b.firstChild) { // same loader already drawn: keep it, so the animation doesn't restart
+    b.innerHTML = text
+      ? `<div class="busy-word" aria-hidden="true">${[...text].map((c, i) => `<span style="--i:${i}">${esc(c)}</span>`).join('')}</div>`
+      : '<span class="tally-loader" aria-hidden="true">T</span>';
+    busyText = text || '';
+  }
+  b.setAttribute('aria-label', text || 'Loading Tally');
+  b.hidden = false;
+}
+function hideBusy() { $('busy').hidden = true; }
+function renderLoading(text) {
   document.body.classList.add('loading-screen');
-  $('boot-loader').hidden = false;
-  const nav = document.querySelector('nav');
-  nav.classList.add('loading');
-  nav.setAttribute('aria-busy', 'true');
-  const topbar = $('topbar');
-  topbar.hidden = false;
-  topbar.innerHTML = '<div class="topbar-skeleton"></div>';
+  showBusy(text);
   $('main').innerHTML = '';
 }
 function hideLoading() {
   document.body.classList.remove('loading-screen');
-  $('boot-loader').hidden = true;
+  hideBusy();
 }
 function withTimeout(promise, milliseconds, message) {
   let timer;
@@ -530,9 +537,6 @@ function render() {
   const nextView = view;
   document.getElementById('main').innerHTML = views[nextView]();
   renderTopbar();
-  const nav = document.querySelector('nav');
-  nav.classList.remove('loading');
-  nav.removeAttribute('aria-busy');
   document.querySelectorAll('nav [data-view]').forEach(b => {
     const ownerOnly = ['log', 'sewers', 'suppliers', 'finance', 'setup'].includes(b.dataset.view);
     const sewerOnly = ['my-log', 'my-finance', 'my-salary'].includes(b.dataset.view);
@@ -847,7 +851,15 @@ function showOnboarding() {
   </div>`;
   if (pendingInvite) showJoinOrganization();
 }
-function hideOnboarding() { $('onboarding').hidden = true; }
+function hideOnboarding() {
+  $('onboarding').hidden = true;
+  const panel = document.querySelector('.onboarding-panel');
+  const x = panel.querySelector('.onboarding-close');
+  panel.classList.remove('invite-mode');
+  x.dataset.act = 'onboarding-exit';
+  x.setAttribute('aria-label', 'Exit organization setup');
+  $('onboarding-title').textContent = 'Set up your workspace';
+}
 async function exitOnboarding() {
   if (cloud) await sb.auth.signOut();
   me = null;
@@ -874,9 +886,10 @@ async function createOrganization() {
     $('onboarding-status').textContent = 'Enter an organization name.';
     return;
   }
-  $('onboarding-status').textContent = 'Creating your organization…';
+  $('onboarding-status').textContent = '';
+  showBusy('Creating organization');
   const {data, error} = await sb.rpc('create_organization', {organization_name: name.trim()});
-  if (error) { $('onboarding-status').textContent = error.message; return; }
+  if (error) { hideBusy(); $('onboarding-status').textContent = error.message; return; }
   organization = data;
   await enter();
 }
@@ -925,12 +938,35 @@ function scanInvite() {
 async function joinOrganization() {
   const token = $('join-token').value.replace(/\D/g, '');
   if (!/^\d{6}$/.test(token)) { $('onboarding-status').textContent = 'Enter the six digits shown by the owner.'; return; }
-  $('onboarding-status').textContent = 'Joining organization…';
+  $('onboarding-status').textContent = '';
+  showBusy('Joining organization');
   const {data, error} = await sb.rpc('accept_organization_invite', {raw_token: token});
-  if (error) { $('onboarding-status').textContent = error.message; return; }
+  if (error) { hideBusy(); $('onboarding-status').textContent = error.message; return; }
+  if (!data || !data.id) { hideBusy(); $('onboarding-status').textContent = 'That code is invalid or expired.'; return; }
   organization = data;
   pendingInvite = '';
   await enter();
+}
+let inviteCache = null, inviting = false;
+function openInviteModal() {
+  const panel = document.querySelector('.onboarding-panel');
+  const x = panel.querySelector('.onboarding-close');
+  panel.classList.add('invite-mode');
+  x.dataset.act = 'onboarding-close'; // in this view the corner X only closes the modal (the normal one signs out)
+  x.setAttribute('aria-label', 'Close');
+  $('onboarding-title').textContent = 'Invite a sewer';
+  $('onboarding-status').textContent = '';
+  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>Invite code</span><div class="invite-qr invite-wait"><span class="tally-loader" aria-hidden="true">T</span></div><strong>···</strong></div>';
+  $('onboarding').hidden = false;
+}
+function showInvite(token, expiresAt) {
+  const displayCode = `${token.slice(0, 3)}-${token.slice(3)}`;
+  const until = new Date(expiresAt).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'});
+  navigator.clipboard && navigator.clipboard.writeText(displayCode).catch(() => {});
+  $('onboarding-content').innerHTML = `<div class="invite-code-display"><span>Invite code</span><div class="invite-qr" id="invite-qr"></div><strong>${esc(displayCode)}</strong><small>Scan this QR code or share the six-digit code. Valid until ${until}.</small></div>`;
+  if (typeof QRCode === 'function') {
+    new QRCode($('invite-qr'), {text: token, width: 180, height: 180});
+  }
 }
 async function createInvite() {
   if (!organization || !organization.id) {
@@ -938,35 +974,29 @@ async function createInvite() {
     $('onboarding').hidden = false;
     return;
   }
-  const {data, error} = await sb.rpc('create_organization_invite', {target_organization: organization.id});
-  if (error) {
-    const message = /gen_random_bytes|digest/i.test(error.message || '')
-      ? 'The Supabase invite function is still using the old QR-code version. Run the updated invite SQL migration in the Supabase SQL Editor, then refresh Tally.'
-      : error.message;
-    alert('Could not create invite: ' + message);
+  if (inviting) return;
+  openInviteModal(); // open right away, fill in the code when it arrives
+  if (inviteCache && inviteCache.org === organization.id && new Date(inviteCache.expires) > new Date()) {
+    showInvite(inviteCache.token, inviteCache.expires); // same code for 24 hours, no need to ask Supabase again
     return;
   }
-  if (!data || !data[0] || !data[0].invite_token) {
-    alert('Could not create invite: Supabase returned no invite token. Rerun the latest supabase-schema.sql migration.');
-    return;
-  }
-  const token = data[0].invite_token;
-  const displayCode = `${token.slice(0, 3)}-${token.slice(3)}`;
-  navigator.clipboard && navigator.clipboard.writeText(displayCode).catch(() => {});
-  $('onboarding').hidden = false;
-  $('onboarding-content').innerHTML = `<div class="invite-code-display"><span>Invite code</span><div class="invite-qr" id="invite-qr"></div><strong>${esc(displayCode)}</strong><small>Scan this QR code or share the six-digit code. It expires in 24 hours.</small></div>
-    <button class="primary" data-act="invite">Generate another code</button>
-    <button class="textbtn" data-act="onboarding-close">Close</button>`;
-  if (typeof QRCode === 'function') {
-    new QRCode($('invite-qr'), {text: token, width: 220, height: 220});
+  inviting = true;
+  try {
+    const {data, error} = await sb.rpc('create_organization_invite', {target_organization: organization.id});
+    if (error || !data || !data[0] || !data[0].invite_token) {
+      hideOnboarding();
+      alert('Could not create invite: ' + (error ? error.message : 'Supabase returned no invite token.'));
+      return;
+    }
+    inviteCache = {org: organization.id, token: data[0].invite_token, expires: data[0].expires_at};
+    showInvite(inviteCache.token, inviteCache.expires);
+  } finally {
+    inviting = false;
   }
 }
 function showAuth(msg) {
   hideLoading();
-  const nav = document.querySelector('nav');
   document.body.classList.add('auth-screen');
-  nav.classList.remove('loading');
-  nav.removeAttribute('aria-busy');
   $('topbar').hidden = true;
   $('auth').hidden = false;
   $('confirm-modal').hidden = true;
@@ -997,9 +1027,6 @@ function setAuthMode(m) {
     ? 'Already have an account? <strong>Log in</strong>'
     : "Don't have an account? <strong>Sign up</strong>";
   $('a-sub').textContent = m === 'signup' ? 'Create your account' : 'Log in to continue';
-  $('a-auth-hint').textContent = m === 'signup'
-    ? 'You can also create an account with Google.'
-    : 'Signed up with Google? Use Continue with Google instead of a password.';
   $('a-err').textContent = '';
 }
 function confirmationRedirectUrl() {
@@ -1175,8 +1202,9 @@ async function unsubscribeRealtime() {
   realtimeState = 'DISCONNECTED';
 }
 async function enter() {
+  const word = $('busy').hidden ? '' : busyText; // keep "Creating/Joining organization" on screen while the app loads
   hideAuth();
-  renderLoading();
+  renderLoading(word);
   const {data: u} = await sb.auth.getUser();
   if (!u || !u.user || !u.user.id) {
     showAuth('Your session expired. Please log in again.');
@@ -1297,7 +1325,7 @@ async function removeEntry(id) {
 }
 async function boot() {
   if (authTest) { showAuth(); return; }
-  if (!cloud) { me = {id: 'local-user', name: 'Local owner', role: 'owner'}; organization = {id: 'local-org', name: 'Local workspace'}; entries = loadEntries(); deriveLocalRates(); render(); return; }
+  if (!cloud) { me = {id: 'local-user', name: 'Local owner', role: 'owner'}; organization = {id: 'local-org', name: 'Local workspace'}; entries = loadEntries(); deriveLocalRates(); hideLoading(); render(); return; }
   renderLoading();
   try {
     const {data, error} = await withTimeout(sb.auth.getSession(), 8000, 'Supabase took too long to respond.');
