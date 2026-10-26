@@ -81,6 +81,40 @@
     <p id="onboarding-status" role="alert"></p>
   </section>
 </div>
+<div id="scan-modal" class="confirm-modal scan-modal" hidden>
+  <section class="confirm-panel scan-panel" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+    <button class="onboarding-close" data-act="scan-close" aria-label="Close scanner">&times;</button>
+    <div class="scan-main">
+      <h2 id="scan-title">Scan invite QR code</h2>
+      <p class="muted">Point your camera at the owner's QR code.</p>
+      <div id="qr-reader" class="qr-reader"></div>
+      <p id="scan-status" role="alert"></p>
+    </div>
+    <div class="scan-success" role="status">
+      <svg class="ok-svg" viewBox="0 0 120 120" aria-hidden="true">
+        <g class="ok-burst">
+          <g transform="rotate(0 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(30 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(60 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(90 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(120 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(150 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(180 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(210 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(240 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(270 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(300 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+          <g transform="rotate(330 60 60)"><line x1="60" y1="20" x2="60" y2="4" pathLength="1"/></g>
+        </g>
+        <g class="ok-icon">
+          <circle class="ok-ring" cx="60" cy="60" r="36" pathLength="1" transform="rotate(-90 60 60)"/>
+          <path class="ok-check" d="M44 61 L56 73 L78 49" pathLength="1"/>
+        </g>
+      </svg>
+      <p class="ok-text">Code scanned</p>
+    </div>
+  </section>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode"></script>

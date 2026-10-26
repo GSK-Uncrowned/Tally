@@ -18,23 +18,22 @@ It uses a black-and-white minimalist design, works on phones and desktops, and f
 
 ## Tech
 
-- Plain HTML, CSS, and JavaScript in a single file. No framework and no build step.
+- Plain HTML, CSS, and JavaScript, split into `index.html`, `style.css`, and `app.js`, with the Supabase keys in `config.js`. No framework and no build step.
 - When Supabase is configured, data is saved online so signed-in users can share it. Without Supabase configuration, data is saved in the browser (localStorage).
 - In cloud mode, the app uses Supabase Realtime to keep entries, rates, and catalog options synchronized across open devices. Realtime must be enabled for those tables in the Supabase project.
 - Apply [`supabase-schema.sql`](./supabase-schema.sql) in the Supabase SQL editor before using organization onboarding. It adds organization membership, six-digit invite functions, and role-aware RLS.
 
 ## Run it
 
-Open `index.html` in any browser.
+1. Create a `config.js` next to `index.html` that defines `SUPABASE_URL` and `SUPABASE_ANON_KEY` (use the values from your Supabase project settings). Skip this to run in local-only mode.
+2. Open `index.html` in a browser, or serve the folder with any static server.
 
 ## Roadmap
 
-- Add shared sewer/profile management
 - Edit existing entries
-- Fewer fields per entry, with saved price and pay rates
-- Pick suppliers, items, colors, and sizes from a list so names stay consistent
-- Search, CSV export, and a printable weekly salary slip
+- Search, CSV export, and an on-screen weekly summary (no printing needed)
 - Install on a phone like an app
+- More stability work: clearer error and offline messages, and a security review of the database rules
 
 ## About this project
 

@@ -734,6 +734,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'join-org') { showJoinOrganization(); return; }
   else if (d.act === 'join-submit') { joinOrganization(); return; }
   else if (d.act === 'scan-invite') { scanInvite(); return; }
+  else if (d.act === 'scan-close') { closeScanner(); return; }
   else if (d.act === 'onboarding-back') { showOnboarding(); return; }
   else if (d.act === 'onboarding-exit') { exitOnboarding(); return; }
   else if (d.act === 'onboarding-close') { hideOnboarding(); return; }
@@ -899,38 +900,54 @@ function showJoinOrganization() {
     <input class="in invite-code-input" id="join-token" inputmode="numeric" maxlength="7" placeholder="000-000" value="${esc(pendingInvite)}">
     <button class="primary" data-act="join-submit">Join organization</button>
     <button class="btn" data-act="scan-invite">Scan QR code</button>
-    <div id="qr-reader" class="qr-reader" hidden></div>
     <button class="textbtn" data-act="onboarding-back">Back</button>
   </div>`;
+}
+async function stopScanner() {
+  const s = window.tallyQrScanner;
+  window.tallyQrScanner = null;
+  if (!s) return;
+  try { await s.stop(); } catch (e) {}
+  try { s.clear(); } catch (e) {}
+}
+let scanTimer = null;
+function closeScanner() {
+  clearTimeout(scanTimer);
+  $('scan-modal').hidden = true;
+  document.querySelector('.scan-panel').classList.remove('done');
+  stopScanner();
+}
+function scanSuccess() {
+  stopScanner();
+  document.querySelector('.scan-panel').classList.add('done');
+  clearTimeout(scanTimer);
+  scanTimer = setTimeout(closeScanner, 1900);
 }
 function scanInvite() {
   if (typeof Html5Qrcode !== 'function') {
     $('onboarding-status').textContent = 'QR scanning is unavailable. Enter the six-digit code instead.';
     return;
   }
-  const reader = $('qr-reader');
-  reader.hidden = false;
+  $('scan-status').textContent = '';
+  $('scan-modal').hidden = false;
   const scanner = new Html5Qrcode('qr-reader');
   window.tallyQrScanner = scanner;
   scanner.start(
     {facingMode: 'environment'},
-    {fps: 10, qrbox: 220},
+    {fps: 10, qrbox: 200, aspectRatio: 1},
     text => {
+      if (window.tallyQrScanner !== scanner) return;
       const digits = text.replace(/\D/g, '').slice(-6);
       if (digits.length !== 6) {
-        $('onboarding-status').textContent = 'That QR code is not a Tally invite code.';
+        $('scan-status').textContent = 'That QR code is not a Tally invite code.';
         return;
       }
       $('join-token').value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
-      scanner.stop().then(() => {
-        reader.hidden = true;
-        window.tallyQrScanner = null;
-      }).catch(() => {});
+      scanSuccess();
     },
     () => {}
   ).catch(error => {
-    reader.hidden = true;
-    window.tallyQrScanner = null;
+    closeScanner();
     $('onboarding-status').textContent = 'Could not access the camera. Enter the six-digit code instead.';
     console.error('Could not start QR scanner:', error);
   });
