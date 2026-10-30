@@ -952,15 +952,51 @@ function scanInvite() {
     console.error('Could not start QR scanner:', error);
   });
 }
+let joinCooldownTimer = null;
+function startJoinCooldown(seconds) {
+  clearInterval(joinCooldownTimer);
+  const btn = document.querySelector('[data-act="join-submit"]');
+  const status = $('onboarding-status');
+  let left = Math.ceil(seconds);
+  const tick = () => {
+    if (left <= 0) {
+      clearInterval(joinCooldownTimer);
+      if (btn) btn.disabled = false;
+      status.textContent = '';
+      return;
+    }
+    const m = Math.floor(left / 60), s = String(left % 60).padStart(2, '0');
+    status.textContent = `Too many wrong codes. Try again in ${m}:${s}.`;
+    if (btn) btn.disabled = true;
+    left--;
+  };
+  tick();
+  joinCooldownTimer = setInterval(tick, 1000);
+}
+
 async function joinOrganization() {
-  const token = $('join-token').value.replace(/\D/g, '');
-  if (!/^\d{6}$/.test(token)) { $('onboarding-status').textContent = 'Enter the six digits shown by the owner.'; return; }
-  $('onboarding-status').textContent = '';
+  const input = $('join-token'), status = $('onboarding-status');
+  const token = input.value.replace(/\D/g, '');
+  input.classList.remove('invalid');
+  if (!/^\d{6}$/.test(token)) {
+    input.classList.add('invalid');
+    status.textContent = 'Enter the six digits shown by the owner.';
+    return;
+  }
+  status.textContent = '';
   showBusy('Joining organization');
   const {data, error} = await sb.rpc('accept_organization_invite', {raw_token: token});
-  if (error) { hideBusy(); $('onboarding-status').textContent = error.message; return; }
-  if (!data || !data.id) { hideBusy(); $('onboarding-status').textContent = 'That code is invalid or expired.'; return; }
-  organization = data;
+  if (error) { hideBusy(); status.textContent = error.message; return; }
+  if (!data || !data.ok) {
+    hideBusy();
+    if (data && data.reason === 'locked') { startJoinCooldown(data.retry_after); return; }
+    input.classList.add('invalid');
+    input.focus();
+    if (data && data.retry_after) startJoinCooldown(data.retry_after);
+    else status.textContent = `That code is invalid or expired. ${data ? data.attempts_left : 0} tries left before a cooldown.`;
+    return;
+  }
+  organization = data.organization;
   pendingInvite = '';
   await enter();
 }
