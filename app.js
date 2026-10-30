@@ -921,7 +921,7 @@ function scanSuccess() {
   stopScanner();
   document.querySelector('.scan-panel').classList.add('done');
   clearTimeout(scanTimer);
-  scanTimer = setTimeout(closeScanner, 1900);
+  scanTimer = setTimeout(() => { closeScanner(); joinOrganization(); }, 1900);
 }
 function scanInvite() {
   if (typeof Html5Qrcode !== 'function') {
