@@ -12,6 +12,8 @@ body:has(dialog[open]){overflow:hidden}
 .loading-screen .app{visibility:hidden}
 #busy{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:var(--bg)}
 #busy[hidden]{display:none}
+.loading-screen #busy{background:#000}
+.loading-screen #busy .tl{color:#fff}
 .tl{display:flex;flex-direction:column;align-items:center;color:var(--ink)}
 .tl svg{width:84px;height:auto;overflow:visible}
 .tl.sm svg{width:52px}
