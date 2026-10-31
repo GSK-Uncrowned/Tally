@@ -502,13 +502,23 @@ function renderTopbar() {
     </div>
   </details>`;
 }
+function loaderHTML(label, small) {
+  return `<div class="tl${small ? ' sm' : ''}" aria-hidden="true">
+    <svg viewBox="0 7 48 35">
+      <line class="tl-l m0" x1="10" y1="11" x2="10.9" y2="38" pathLength="1"/>
+      <line class="tl-l m1" x1="19" y1="10" x2="18.3" y2="39.5" pathLength="1"/>
+      <line class="tl-l m2" x1="28" y1="12.5" x2="28.8" y2="37" pathLength="1"/>
+      <line class="tl-l m3" x1="37" y1="10" x2="36.8" y2="38.5" pathLength="1"/>
+      <line class="tl-l sl" x1="2.5" y1="37" x2="45.5" y2="12" pathLength="1"/>
+    </svg>
+    <span class="tl-word${label.length > 8 ? ' long' : ''}">${esc(label)}</span>
+  </div>`;
+}
 let busyText = '';
 function showBusy(text) {
   const b = $('busy');
   if (busyText !== (text || '') || !b.firstChild) { // same loader already drawn: keep it, so the animation doesn't restart
-    b.innerHTML = text
-      ? `<div class="busy-word" aria-hidden="true">${[...text].map((c, i) => `<span style="--i:${i}">${esc(c)}</span>`).join('')}</div>`
-      : '<span class="tally-loader" aria-hidden="true">T</span>';
+    b.innerHTML = loaderHTML(text || 'Tally');
     busyText = text || '';
   }
   b.setAttribute('aria-label', text || 'Loading Tally');
@@ -545,6 +555,7 @@ function render() {
   });
 }
 const $ = id => document.getElementById(id);
+showBusy('');
 const WIZARD_STEPS = [
   {key: 'client', label: 'Who is it from?', kind: 'supplier'},
   {key: 'item', label: 'What are you sewing?', kind: 'item'},
@@ -1009,7 +1020,7 @@ function openInviteModal() {
   x.setAttribute('aria-label', 'Close');
   $('onboarding-title').textContent = 'Invite a sewer';
   $('onboarding-status').textContent = '';
-  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>Invite code</span><div class="invite-qr invite-wait"><span class="tally-loader" aria-hidden="true">T</span></div><strong>···</strong></div>';
+  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>Invite code</span><div class="invite-qr invite-wait">' + loaderHTML('Tally', true) + '</div><strong>···</strong></div>';
   $('onboarding').hidden = false;
 }
 function showInvite(token, expiresAt) {
@@ -1101,7 +1112,7 @@ function showConfirmation(email) {
 function showConfirmationLoading(email) {
   const panel = document.querySelector('.confirm-panel');
   panel.classList.add('loading');
-  $('confirm-icon').innerHTML = '<span class="tally-loader">T</span>';
+  $('confirm-icon').innerHTML = loaderHTML('Tally', true);
   $('confirm-title').textContent = 'Creating your account…';
   $('confirm-message').textContent = `Setting up ${email}. Just a moment.`;
   $('confirm-actions').hidden = true;
