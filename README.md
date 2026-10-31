@@ -34,7 +34,3 @@ It uses a black-and-white minimalist design, works on phones and desktops, and f
 - Search, CSV export, and an on-screen weekly summary (no printing needed)
 - Install on a phone like an app
 - More stability work: clearer error and offline messages, and a security review of the database rules
-
-## About this project
-
-I built this with help from Claude (Anthropic) while learning JavaScript and Supabase. I'm using it to practice reading, changing, and understanding the code, not just generating it.
