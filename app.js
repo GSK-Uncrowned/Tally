@@ -17,36 +17,9 @@ const k = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(n
 const KEY = 'tally-entries-v2';
 const RATE_KEY = 'tally-rates-v1';
 const CATALOG_KEY = 'tally-catalog-v1';
-// [days ago, item, color, size, qty, from, price, sewer, sewer pay]
-const DEMO = [
-  [0,'Plain t-shirt','White','Medium',200,'Marvin',4,'Ana',1.5],[0,'Plain t-shirt','White','Small',400,'Marvin',4,'Ben',1.5],
-  [0,'Polo shirt','Navy','Large',60,'Aling Nena',35,'Carla',12],[1,'Plain t-shirt','White','Large',600,'Marvin',4,'Ana',1.5],
-  [1,'Apron','Black','Medium',80,'Ate Joy',20,'Dino',7],[1,'Pillowcase','Cream','Standard',150,'Mang Lito',15,'Elmer',5],
-  [2,'Polo shirt','Navy','Medium',80,'Aling Nena',35,'Carla',12],[2,'School uniform','Blue','Small',40,'Mang Lito',90,'Elmer',30],
-  [2,'Plain t-shirt','Black','Medium',300,'Marvin',4,'Ben',1.5],[3,'Apron','Red','Large',50,'Ate Joy',20,'Dino',7],
-  [3,'Barong','Ivory','Medium',6,'Aling Nena',350,'Carla',120],[4,'Plain t-shirt','Gray','Small',250,'Marvin',4,'Ana',1.5],
-  [5,'Curtains','Beige','Standard',24,'Mang Lito',120,'Elmer',40],[5,'Plain t-shirt','White','Medium',350,'Marvin',4,'Ben',1.5],
-  [6,'Polo shirt','Maroon','Large',45,'Aling Nena',35,'Carla',12],[8,'Plain t-shirt','Black','Large',500,'Marvin',4,'Ana',1.5],
-  [8,'Apron','Green','Medium',70,'Ate Joy',20,'Dino',7],[9,'School uniform','Blue','Medium',55,'Mang Lito',90,'Elmer',30],
-  [10,'Plain t-shirt','White','Small',420,'Marvin',4,'Ben',1.5],[10,'Polo shirt','Navy','Small',35,'Aling Nena',35,'Carla',12],
-  [11,'Pillowcase','White','Standard',200,'Mang Lito',15,'Elmer',5],[12,'Plain t-shirt','Gray','Large',380,'Marvin',4,'Ana',1.5],
-  [13,'Apron','Black','Large',90,'Ate Joy',20,'Dino',7],[15,'Barong','Cream','Large',8,'Aling Nena',350,'Carla',120],
-  [16,'Plain t-shirt','White','Medium',450,'Marvin',4,'Ben',1.5],[17,'Curtains','Gray','Standard',30,'Mang Lito',120,'Elmer',40],
-  [19,'Plain t-shirt','Black','Small',300,'Marvin',4,'Ana',1.5],[20,'School uniform','Blue','Large',60,'Mang Lito',90,'Dino',30],
-  [21,'Polo shirt','Navy','Medium',50,'Aling Nena',35,'Carla',12],
-  [0,'School uniform','Blue','Medium',25,'Mang Lito',90,'Ana',30],[1,'Polo shirt','Navy','Small',40,'Aling Nena',35,'Ana',12],
-  [2,'Pillowcase','White','Standard',120,'Mang Lito',15,'Ana',5],[2,'Apron','Green','Large',45,'Ate Joy',20,'Ana',7],
-  [9,'Polo shirt','Maroon','Medium',30,'Aling Nena',35,'Ana',12],[10,'Apron','Red','Medium',60,'Ate Joy',20,'Ana',7]
-];
-const DEMO_V = 3; // bump this when DEMO changes so old demo entries refresh
-function demoEntries() {
-  return DEMO.map((r, i) => ({id: 9e12 + i, date: ymd(addDays(new Date(), -r[0])), item: r[1], color: r[2], size: r[3],
-    qty: r[4], client: r[5], price: r[6], sewer: r[7], pay: r[8], demo: DEMO_V}));
-}
-function seed() { return demoEntries(); }
 function loadEntries() {
-  try { const s = localStorage.getItem(KEY); if (s) { const list = JSON.parse(s).map(e => ({sewer:'', pay:0, ...e})); return list.some(e => e.demo && e.demo !== DEMO_V) ? list.filter(e => !e.demo).concat(demoEntries()) : list; } } catch (e) {}
-  return seed();
+  try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s).filter(e => !e.demo).map(e => ({sewer:'', pay:0, ...e})); } catch (e) {}
+  return [];
 }
 function saveEntries() { try { localStorage.setItem(KEY, JSON.stringify(entries)); } catch (e) {} }
 function saveLocalSetup() {
@@ -77,12 +50,12 @@ function deriveLocalRates() {
 }
 
 // ---- State ----
-// Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally with demo data
+// Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally in the browser
 const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR');
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const authTest = ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
   new URLSearchParams(window.location.search).has('auth-test');
-let entries = [], me = null, people = [], demoMode = false, organization = null;
+let entries = [], me = null, people = [], organization = null;
 const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let realtimeChannel = null, realtimeState = 'DISCONNECTED';
@@ -497,7 +470,6 @@ function renderTopbar() {
     <div class="profile-popover">
       <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? 'Owner' : 'Sewer'}</span></strong>
       ${isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
-      <button class="menu-btn" data-act="demo">${demoMode ? 'Exit demo mode' : 'Try demo data'}</button>
       <button class="menu-btn" data-act="logout">Log out</button>
     </div>
   </details>`;
@@ -611,19 +583,6 @@ function wizardNext() {
 function wizardBack() {
   if (wizard.step > 0) { wizard.step--; wizard.other = false; renderWizard(); }
 }
-async function toggleDemo() {
-  if (demoMode) {
-    demoMode = false;
-    if (cloud) await refresh();
-    else { entries = loadEntries(); deriveLocalRates(); }
-    render();
-    return;
-  }
-  demoMode = true;
-  entries = demoEntries();
-  deriveLocalRates();
-  render();
-}
 function validateRequired(ids) {
   let first = null;
   ids.forEach(id => {
@@ -732,7 +691,6 @@ document.addEventListener('click', ev => {
   else if (d.act === 'rate-cancel') { $('rate-dlg').close(); return; }
   else if (d.act === 'rate-save') { saveRate(); return; }
   else if (d.act === 'catalog-add') { addCatalogValue(d.kind); return; }
-  else if (d.act === 'demo') { toggleDemo(); return; }
   else if (d.act === 'ask') pendingDel = d.id;
   else if (d.act === 'del') { removeEntry(d.id); return; }
   else if (d.act === 'auth-go') { authGo(); return; }
@@ -1132,8 +1090,7 @@ function enterAuthTestWorkspace() {
   $('auth').hidden = true;
   me = {id: 'auth-test-user', name: 'Test user', role: 'owner'};
   organization = {id: 'auth-test-org', name: 'Test organization'};
-  entries = demoEntries();
-  demoMode = true;
+  entries = [];
   deriveLocalRates();
   view = 'log';
   render();
@@ -1203,7 +1160,6 @@ async function loadRealtimeProfile(sewerId) {
   return data.name;
 }
 async function applyRealtimeEntry(payload) {
-  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
   const index = entries.findIndex(e => String(e.id) === String(row.id));
@@ -1364,7 +1320,7 @@ async function authGoogle() {
 async function logout() {
   await unsubscribeRealtime();
   await sb.auth.signOut();
-  me = null; entries = []; people = []; profileNames.clear(); organization = null; demoMode = false;
+  me = null; entries = []; people = []; profileNames.clear(); organization = null;
   setAuthMode('login'); showAuth(); renderTopbar();
 }
 async function removeEntry(id) {
