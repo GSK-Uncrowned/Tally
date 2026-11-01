@@ -303,9 +303,10 @@ function mySalaryView() {
   const p = periods[a], st = p && (p.statements || []).find(x => x.sewer_id === me.id);
   const foot = st ? `<button class="fin-btn" data-act="slip" data-self="1">${DLI}Download payslip</button>`
     : p ? '' : '<p class="muted fin-note">In progress, not final. You can download your payslip once the owner finalizes the week.</p>';
+  const bar = foot ? '<div class="fin-bar">' + foot + '</div>' : '';
   return `<h1 class="page-title">My salary</h1>${weekNav('sw', s)}
     <div class="tot-l">Your pay</div><div class="tot-v">${peso(total)}</div><p class="muted" style="margin:0">${pieces.toLocaleString()} pieces</p>
-    ${detail || '<p class="empty">No logs this week.</p>'}${foot}`;
+    ${detail || '<p class="empty">No logs this week.</p>'}${bar}`;
 }
 
 function myFinanceView() {
@@ -424,35 +425,54 @@ function group(list, f) {
   return by;
 }
 function sewersView() {
-  const s = swWeek, e = addDays(s, 6), a = ymd(s), b = ymd(e);
+  const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const by = group(entries.filter(x => x.date >= a && x.date <= b && x.sewer), 'sewer');
   const p = periods[a], names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
   const grand = names.reduce((t, n) => t + total(n), 0);
-  const detailFor = n => {
-    const sup = group(by[n], 'client');
-    return Object.keys(sup).sort().map(c => {
+  let bar = '';
+  if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">Reopen week</button><p class="muted fin-note">Entries for this week are locked.</p>`;
+  else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">Finalize week</button><p class="muted fin-note">Locks entries for ${weekText(s)}</p>`;
+  return `<h1 class="page-title">Salary</h1>${weekNav('sw', s)}
+    <div class="tot-l">Total sewer pay</div><div class="tot-v">${peso(grand)}</div>
+    <div class="mini-grid">${names.map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
+    (names.length ? '' : '<p class="empty">No sewers were logged this week.</p>') + (bar ? `<div class="fin-bar">${bar}</div>` : '');
+}
+// The receipt: tap a sewer or supplier card to see everything for that week in a scrollable popup
+function openReceipt(kind, n) {
+  const ws = kind === 'sewer' ? swWeek : spWeek, a = ymd(ws), b = ymd(addDays(ws, 6));
+  let rows, body, total, foot = '';
+  if (kind === 'sewer') {
+    rows = entries.filter(x => x.date >= a && x.date <= b && x.sewer === n);
+    total = rows.reduce((t, x) => t + x.qty * x.pay, 0);
+    const sup = group(rows, 'client');
+    body = Object.keys(sup).sort().map(c => {
       const l = sup[c].sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
       return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
         l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
           <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
-    }).join('') + (p ? `<button class="fin-btn ghost" data-act="slip" data-n="${esc(n)}">${DLI}Download payslip</button>` : '');
-  };
-  const cards = names.map(n => `<div class="scard ${swSel === n ? 'on' : ''}"><button class="scard-head" data-act="sewer" data-n="${esc(n)}" aria-expanded="${swSel === n}"><span><b>${esc(n)}</b><small>${pcs(n).toLocaleString()} pieces</small></span><span class="amt">${peso(total(n))}</span></button>${swSel === n ? `<div class="scard-body">${detailFor(n)}</div>` : ''}</div>`).join('');
-  let foot = '';
-  if (p) foot = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">Reopen week</button><p class="muted fin-note">Entries for this week are locked.</p>`;
-  else if (names.length) foot = `<button class="fin-btn" data-act="fin-open">Finalize week</button><p class="muted fin-note">Locks entries for ${weekText(s)}</p>`;
-  return `<h1 class="page-title">Salary</h1>${weekNav('sw', s)}
-    <div class="tot-l">Total sewer pay</div><div class="tot-v">${peso(grand)}</div>` + cards +
-    (names.length ? '' : '<p class="empty">No sewers were logged this week.</p>') + foot;
+    }).join('');
+    foot = periods[a] ? `<button class="fin-btn" data-act="slip" data-n="${esc(n)}">${DLI}Download payslip</button>`
+      : '<p class="muted fin-note">Not final yet. You can download the payslip after the week is finalized.</p>';
+  } else {
+    rows = entries.filter(x => x.date >= a && x.date <= b && x.client === n);
+    total = rows.reduce((t, x) => t + cmp(x), 0);
+    body = sewerTree(rows);
+  }
+  const pieces = rows.reduce((t, x) => t + x.qty, 0);
+  $('receipt-dlg').innerHTML = `<button class="onboarding-close" data-act="receipt-close" aria-label="Close">&times;</button>
+    <div class="rc-head"><div class="rc-brand">Tally</div><div class="rc-name">${esc(n)}</div><div class="muted">${weekText(ws)} · ${pieces.toLocaleString()} pieces</div></div>
+    <div class="rc-body">${body || '<p class="empty">Nothing this week.</p>'}</div>
+    <div class="rc-foot"><div class="rc-total"><span>${kind === 'sewer' ? 'Total pay' : 'Total'}</span><span>${peso(total)}</span></div>${foot}</div>`;
+  $('receipt-dlg').showModal();
 }
 function openFinalizeSheet() {
   const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const list = entries.filter(x => x.date >= a && x.date <= b && x.sewer), by = group(list, 'sewer');
   const names = Object.keys(by).sort(), tot = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0);
   const missing = list.filter(e => !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size))).length;
-  $('fin-dlg').innerHTML = `<div class="fin-grab"></div><h2>Finalize ${weekText(s)}?</h2><p class="muted">Pay for this week, per sewer</p>` +
-    names.map(n => `<div class="fin-row"><span>${esc(n)}</span><span>${peso(tot(n))}</span></div>`).join('') +
+  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="Close">&times;</button><div class="fin-grab"></div><h2>Finalize ${weekText(s)}?</h2><p class="muted">Pay for this week, per sewer</p>` +
+    `<div class="fin-scroll">${names.map(n => `<div class="fin-row"><span>${esc(n)}</span><span>${peso(tot(n))}</span></div>`).join('')}</div>` +
     `<div class="fin-row fin-total"><span>Total</span><span>${peso(names.reduce((t, n) => t + tot(n), 0))}</span></div>` +
     (missing ? `<div class="fin-warn"><strong>${missing} ${missing === 1 ? 'entry has' : 'entries have'} no rate yet.</strong> Set ${missing === 1 ? 'it' : 'them'} in Setup first so nobody is underpaid.</div>` : '') +
     `<p class="muted">After this, entries for this week can’t be added or deleted, and each sewer gets a saved payslip. You can reopen the week later.</p>
@@ -460,7 +480,7 @@ function openFinalizeSheet() {
   $('fin-dlg').showModal();
 }
 function openReopenSheet() {
-  $('fin-dlg').innerHTML = `<div class="fin-grab"></div><h2>Reopen ${weekText(swWeek)}?</h2>
+  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="Close">&times;</button><div class="fin-grab"></div><h2>Reopen ${weekText(swWeek)}?</h2>
     <p class="muted">The week unlocks and its saved payslips are removed. Finalize it again when you’re done.</p>
     <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="reopen-go">Reopen</button></div>`;
   $('fin-dlg').showModal();
@@ -575,9 +595,9 @@ function suppliersView() {
   const names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + cmp(x), 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
   const grand = names.reduce((t, n) => t + total(n), 0);
-  const cards = names.map(n => `<div class="scard ${spSel === n ? 'on' : ''}"><button class="scard-head" data-act="supplier" data-n="${esc(n)}" aria-expanded="${spSel === n}"><span><b>${esc(n)}</b><small>${pcs(n).toLocaleString()} pieces</small></span><span class="amt">${peso(total(n))}</span></button>${spSel === n ? `<div class="scard-body">${sewerTree(by[n])}</div>` : ''}</div>`).join('');
   return `<h1 class="page-title">Suppliers</h1>${weekNav('sp', spWeek)}
-    <div class="tot-l">Total from suppliers</div><div class="tot-v">${peso(grand)}</div>` + cards +
+    <div class="tot-l">Total from suppliers</div><div class="tot-v">${peso(grand)}</div>
+    <div class="mini-grid">${names.map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
     (names.length ? '' : '<p class="empty">No suppliers logged this week.</p>');
 }
 
@@ -869,8 +889,9 @@ document.addEventListener('click', ev => {
   }
   else if (d.act === 'lw') logWeek = addDays(logWeek, 7 * Number(d.d));
   else if (d.act === 'sw') swWeek = addDays(swWeek, 7 * Number(d.d));
-  else if (d.act === 'sewer') swSel = swSel === d.n ? null : d.n;
-  else if (d.act === 'supplier') spSel = spSel === d.n ? null : d.n;
+  else if (d.act === 'sewer') { openReceipt('sewer', d.n); return; }
+  else if (d.act === 'receipt-close') { $('receipt-dlg').close(); return; }
+  else if (d.act === 'supplier') { openReceipt('supplier', d.n); return; }
   else if (d.act === 'sp') spWeek = addDays(spWeek, 7 * Number(d.d));
   else if (d.act === 'mshift') { month = new Date(month.getFullYear(), month.getMonth() + Number(d.d), 1); sel = null; }
   render();
