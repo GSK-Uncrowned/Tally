@@ -59,10 +59,12 @@ let entries = [], me = null, people = [], organization = null, periods = {};
 const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let realtimeChannel = null, realtimeState = 'DISCONNECTED';
+let demoMode = false, demoBackup = null;
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
 let pendingInvite = new URLSearchParams(window.location.search).get('invite') || '';
 const isOwner = () => me && me.role === 'owner';
 const isSewer = () => me && me.role === 'sewer';
+const remote = () => cloud && !demoMode;
 let wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
 month.setDate(1);
 
@@ -88,6 +90,7 @@ const PKEY = 'tally-periods-v1';
 const isLocked = d => !!periods[ymd(weekStart(parse(d)))];
 function savePeriods() { try { localStorage.setItem(PKEY, JSON.stringify(periods)); } catch (e) {} }
 async function loadPeriods() {
+  if (demoMode) return;
   if (!cloud) { try { periods = JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { periods = {}; } return; }
   const {data, error} = await sb.from('salary_periods').select('week_start, finalized_at, salary_statements(sewer_id, sewer_name, pieces, total, lines)').eq('organization_id', organization.id);
   periods = {};
@@ -109,20 +112,20 @@ function buildStatements(ws) {
 }
 async function finalizeWeek(ws) {
   const key = ymd(ws), statements = buildStatements(ws);
-  if (cloud) {
+  if (remote()) {
     const {error} = await sb.rpc('finalize_week', {target_organization: organization.id, target_week: key, statements});
     if (error) { alert('Could not finalize this week: ' + error.message + '\n(If it mentions a missing function, run supabase-finalize.sql in Supabase first.)'); return false; }
     await loadPeriods();
-  } else { periods[key] = {finalized_at: new Date().toISOString(), statements}; savePeriods(); }
+  } else { periods[key] = {finalized_at: new Date().toISOString(), statements}; if (!demoMode) savePeriods(); }
   return true;
 }
 async function reopenWeek(ws) {
   const key = ymd(ws);
-  if (cloud) {
+  if (remote()) {
     const {error} = await sb.rpc('reopen_week', {target_organization: organization.id, target_week: key});
     if (error) { alert('Could not reopen this week: ' + error.message); return false; }
     await loadPeriods();
-  } else { delete periods[key]; savePeriods(); }
+  } else { delete periods[key]; if (!demoMode) savePeriods(); }
   return true;
 }
 const LOCKI = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -268,9 +271,7 @@ function weekLabel(ws) {
 function logView() {
   const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
-  const pcs = list.reduce((t, e) => t + e.qty, 0);
-  let out = `<h1 class="page-title">Log</h1>${weekNav('lw', s)}
-    <div class="tot-l">Logged this week</div><div class="tot-v">${pcs.toLocaleString()} <span class="tot-u">pieces</span></div>` +
+  let out = `<h1 class="page-title">Log</h1>${weekNav('lw', s)}` +
     (periods[a] ? '<p class="muted fin-note" style="text-align:left;margin:0 0 4px">This week is finalized, so its entries are locked.</p>' : ''), last = '';
   list.forEach(e => {
     if (e.date !== last) { out += `<div class="day">${dayLabel(e.date)}</div>`; last = e.date; }
@@ -504,7 +505,11 @@ async function drawSheet(o) {
   await Promise.all(['54px "Gochi Hand"', '700 20px "DM Sans"', '600 20px "DM Sans"', '400 20px "DM Sans"'].map(f => document.fonts.load(f)));
   const Wd = 720, P = 44, F = f => f + ' "DM Sans",sans-serif';
   let h = 300;
-  o.sections.forEach(s => { if (s.head) h += 110; s.groups.forEach(g => { h += 56 + g.rows.length * 84; }); h += 24; });
+  o.sections.forEach((s, sectionIndex) => {
+    if (s.head) h += 110 + (sectionIndex ? 44 : 0);
+    s.groups.forEach((g, groupIndex) => { h += 56 + g.rows.length * 84 + (groupIndex ? 28 : 0); });
+    h += 24;
+  });
   h += 230;
   const c = document.createElement('canvas'); c.width = Wd; c.height = h;
   const x = c.getContext('2d');
@@ -521,13 +526,25 @@ async function drawSheet(o) {
   x.fillStyle = '#111'; x.font = F('700 54px'); x.fillText(fit(o.name, Wd - 2 * P), P, 222);
   x.fillStyle = '#6b6b6b'; x.font = F('400 26px'); x.fillText(o.sub, P, 266);
   let y = 300;
-  o.sections.forEach(s => {
+  o.sections.forEach((s, sectionIndex) => {
+    if (s.head && sectionIndex) {
+      y += 20;
+      x.strokeStyle = '#111'; x.lineWidth = 3; x.setLineDash([]);
+      x.beginPath(); x.moveTo(P, y); x.lineTo(Wd - P, y); x.stroke();
+      y += 24;
+    }
     if (s.head) {
       y += 44; x.fillStyle = '#111'; x.font = F('700 34px'); x.fillText(fit(s.head.name, 380), P, y);
       x.textAlign = 'right'; x.fillText(s.head.total, Wd - P, y); x.textAlign = 'left';
       y += 36; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(s.head.sub, P, y); y += 30;
     }
-    s.groups.forEach(g => {
+    s.groups.forEach((g, groupIndex) => {
+      if (groupIndex) {
+        y += 12;
+        x.strokeStyle = '#b8b8b8'; x.lineWidth = 2; x.setLineDash([]);
+        x.beginPath(); x.moveTo(P, y); x.lineTo(P + (Wd - 2 * P) * .52, y); x.stroke();
+        y += 16;
+      }
       y += 40; x.fillStyle = '#6b6b6b'; x.font = F('600 20px'); x.fillText(g.s.toUpperCase(), P, y); y += 16;
       g.rows.forEach(r => {
         y += 34; x.fillStyle = '#111'; x.font = F('600 28px'); x.fillText(fit(r.a, Wd - 2 * P - 190), P, y);
@@ -625,19 +642,81 @@ function setupView() {
 const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView, 'my-log': myLogView, 'my-finance': myFinanceView, 'my-salary': mySalaryView};
 function renderTopbar() {
   const topbar = $('topbar');
-  if (!cloud || !me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
+  if (!me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
   topbar.hidden = false;
   const realtimeLive = realtimeState === 'SUBSCRIBED';
-  topbar.innerHTML = `<span class="live-status ${realtimeLive ? 'live' : ''}" role="status" title="${realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting'}">
-      <span class="live-dot" aria-hidden="true"></span><span class="live-label">${realtimeLive ? 'Live' : 'Syncing'}</span>
+  topbar.innerHTML = `<span class="live-status ${demoMode ? 'demo-status' : (realtimeLive ? 'live' : '')}" role="status" title="${demoMode ? 'Demo data is isolated from your workspace' : (realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting')}">
+      <span class="live-dot" aria-hidden="true"></span><span class="live-label">${demoMode ? 'Demo' : (cloud ? (realtimeLive ? 'Live' : 'Syncing') : 'Local')}</span>
     </span><details class="profile-menu">
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
       <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? 'Owner' : 'Sewer'}</span></strong>
-      ${isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
-      <button class="menu-btn" data-act="logout">Log out</button>
+      ${demoMode ? '<button class="menu-btn" data-act="demo-exit">Back to my workspace</button>' : '<button class="menu-btn" data-act="demo-data">Try isolated demo data</button>'}
+      ${!demoMode && isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
+      ${demoMode ? '' : '<button class="menu-btn" data-act="logout">Log out</button>'}
     </div>
   </details>`;
+}
+function tryDemoData() {
+  if (demoMode) return;
+  demoBackup = {me, organization, entries, people, periods, rates, catalog, view, profileNames: new Map(profileNames)};
+  const owner = {id: 'demo-owner', name: 'Demo Owner', role: 'owner', active: true};
+  const sewers = [
+    {id: 'demo-sewer-1', name: 'Avery Santos', role: 'sewer', active: true},
+    {id: 'demo-sewer-2', name: 'Mika Reyes', role: 'sewer', active: true},
+    {id: 'demo-sewer-3', name: 'Jordan Cruz', role: 'sewer', active: true},
+    {id: 'demo-sewer-4', name: 'Casey Lim', role: 'sewer', active: true},
+    {id: 'demo-sewer-5', name: 'Riley Garcia', role: 'sewer', active: true}
+  ];
+  demoMode = true;
+  me = owner;
+  people = [owner, ...sewers];
+  organization = {id: 'demo-organization', name: 'Tally Demo Workspace'};
+  periods = {};
+  profileNames.clear();
+  people.forEach(person => profileNames.set(person.id, person.name));
+  const suppliers = ['Mia Fabrics', 'North Thread Co.', 'Golden Loom', 'Sew Good Supply', 'The Button House'];
+  const items = ['Dress', 'Blouse', 'Pants', 'Skirt', 'Uniform', 'Curtains', 'Pillowcase'];
+  const colors = ['Black', 'Navy', 'Cream', 'Sage', 'Rose', 'Denim', 'Mustard'];
+  const sizes = ['XS', 'Small', 'Medium', 'Large', 'XL', 'XXL'];
+  const demo = [];
+  const start = weekStart(addDays(new Date(), -84));
+  for (let i = 0; i < 180; i++) {
+    const day = addDays(start, (i * 11) % 91);
+    const supplier = suppliers[i % suppliers.length];
+    const item = items[(i * 3) % items.length];
+    const sewer = sewers[i % sewers.length];
+    demo.push({
+      id: `demo-${i}`, demo: true, date: ymd(day), item,
+      color: colors[(i * 5) % colors.length], size: sizes[(i * 7) % sizes.length],
+      client: supplier, qty: 2 + ((i * 17) % 29),
+      price: 85 + ((i * 23) % 116), pay: 18 + ((i * 7) % 28),
+      sewer: sewer.name, sewer_id: sewer.id, created_by: owner.id
+    });
+  }
+  entries = demo;
+  rates = [];
+  catalog = {item: [], color: [], size: [], supplier: []};
+  demo.forEach(e => {
+    const key = rateKey(e.client, e.item, e.size);
+    if (!rates.some(rate => rateKey(rate.supplier, rate.item, rate.size) === key)) {
+      rates.push({supplier: e.client, item: e.item, size: e.size, price: e.price, pay: e.pay});
+    }
+    [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
+      if (!catalog[kind].includes(value)) catalog[kind].push(value);
+    });
+  });
+  logWeek = weekStart(new Date()); swWeek = weekStart(new Date()); spWeek = weekStart(new Date());
+  render();
+}
+function exitDemoData() {
+  if (!demoMode || !demoBackup) return;
+  ({me, organization, entries, people, periods, rates, catalog, view} = demoBackup);
+  profileNames.clear();
+  demoBackup.profileNames.forEach((name, id) => profileNames.set(id, name));
+  demoBackup = null;
+  demoMode = false;
+  render();
 }
 function loaderHTML(label, small) {
   return `<div class="tl${small ? ' sm' : ''}" aria-hidden="true">
@@ -768,17 +847,17 @@ async function saveEntry() {
   saving = true;
   try {
     const v = wizard.values, e = {date: wizard.date, item: v.item, color: v.color || 'Any', size: v.size || 'Any',
-      client: v.client || 'Unknown', sewer: cloud ? me.name : '', qty: Number(v.qty)};
+      client: v.client || 'Unknown', sewer: demoMode ? me.name : (remote() ? me.name : ''), qty: Number(v.qty)};
     const r = currentRate(e);
     e.price = r.price; e.pay = r.pay;
     if (isLocked(e.date)) { $('err').textContent = 'That week is finalized. Ask the owner to reopen it, or pick a date in an open week.'; return; }
 
-    if (!cloud) {
+    if (!remote()) {
       e.id = Date.now(); entries.push(e);
       [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
         if (!catalog[kind].includes(value)) catalog[kind].push(value);
       });
-      saveEntries(); saveLocalSetup();
+      if (!demoMode) { saveEntries(); saveLocalSetup(); }
       logWeek = weekStart(parse(e.date)); $('dlg').close(); render();
       return;
     }
@@ -878,9 +957,12 @@ document.addEventListener('click', ev => {
   else if (d.act === 'scan-invite') { scanInvite(); return; }
   else if (d.act === 'scan-close') { closeScanner(); return; }
   else if (d.act === 'onboarding-back') { showOnboarding(); return; }
+  else if (d.act === 'name-submit') { saveName(); return; }
   else if (d.act === 'onboarding-exit') { exitOnboarding(); return; }
   else if (d.act === 'onboarding-close') { hideOnboarding(); return; }
   else if (d.act === 'invite') { createInvite(); return; }
+  else if (d.act === 'demo-data') { tryDemoData(); return; }
+  else if (d.act === 'demo-exit') { exitDemoData(); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'week' || d.act === 'day') {
@@ -908,6 +990,9 @@ document.addEventListener('keydown', ev => {
   if (ev.target.closest('#auth')) {
     ev.preventDefault();
     authGo();
+  } else if (ev.target.id === 'profile-name-in') {
+    ev.preventDefault();
+    saveName();
   } else if (ev.target.closest('#dlg')) {
     ev.preventDefault();
     wizardNext();
@@ -950,7 +1035,7 @@ async function saveRate() {
   const affected = entries.filter(e => inCurrentWeek(e) && !isLocked(e.date));
   const previousEntries = affected.map(e => ({e, price:e.price, pay:e.pay}));
   affected.forEach(e => { e.price = price; e.pay = pay; });
-  if (cloud) {
+  if (remote()) {
     const {error} = await sb.from('tally_rates').upsert({organization_id:organization.id, supplier:r.supplier, item:r.item, size:r.size, price, pay, created_by:me.id},
       {onConflict:'organization_id,supplier,item,size'});
     if (error) {
@@ -967,7 +1052,7 @@ async function saveRate() {
         $('rate-err').textContent = updateError.message; return;
       }
     }
-  } else { saveEntries(); saveLocalSetup(); }
+  } else if (!demoMode) { saveEntries(); saveLocalSetup(); }
   $('rate-dlg').close(); render();
 }
 async function addCatalogValue(kind) {
@@ -976,19 +1061,54 @@ async function addCatalogValue(kind) {
   if (!value || !value.trim()) return;
   const clean = value.trim();
   if (!catalog[kind].some(v => v.toLowerCase() === clean.toLowerCase())) catalog[kind].push(clean);
-  if (cloud) {
+  if (remote()) {
     const {error} = await sb.from('tally_catalog_values').insert({organization_id:organization.id, kind, value:clean, created_by:me.id});
     if (error && error.code !== '23505') { alert('Could not add option: ' + error.message); return; }
-  } else saveLocalSetup();
+  } else if (!demoMode) saveLocalSetup();
   render();
 }
 // ---- Cloud (Supabase) ----
 const canDelete = () => isOwner();
 let authMode = 'login';
+let nameConfirmedFor = null;
 function showOnboarding() {
   hideLoading();
   $('onboarding').hidden = false;
   $('onboarding-status').textContent = '';
+  if (nameConfirmedFor === me.id) showOnboardingChoices(); else showNameStep();
+}
+// First step for every new account: confirm the name teammates will see (Google names are not always real names)
+function showNameStep() {
+  $('onboarding-title').textContent = 'What’s your name?';
+  document.querySelector('.onboarding-panel').classList.add('name-mode');
+  $('onboarding-content').innerHTML = `<div class="onboarding-form">
+    <input class="in" id="profile-name-in" aria-label="Your name" placeholder="Name" autocomplete="name" maxlength="80" value="${esc(me.name || '')}">
+    <button class="primary" data-act="name-submit">Continue</button>
+  </div>`;
+  $('profile-name-in').focus();
+}
+async function saveName() {
+  const input = $('profile-name-in'), name = input.value.trim().replace(/\s+/g, ' ');
+  if (name.length < 2) { input.classList.add('invalid'); $('onboarding-status').textContent = 'Please enter your name.'; return; }
+  input.classList.remove('invalid');
+  $('onboarding-status').textContent = '';
+  if (name !== me.name) {
+    let ok = false;
+    const r = await sb.from('profiles').update({name}).eq('id', me.id).select('id');
+    if (!r.error && r.data && r.data.length) ok = true;
+    else {
+      const f = await sb.rpc('set_profile_name', {new_name: name});
+      if (!f.error) ok = true; else $('onboarding-status').textContent = 'Could not save your name: ' + f.error.message;
+    }
+    if (!ok) return;
+    me.name = name;
+  }
+  nameConfirmedFor = me.id;
+  showOnboardingChoices();
+}
+function showOnboardingChoices() {
+  $('onboarding-title').textContent = 'Set up your workspace';
+  document.querySelector('.onboarding-panel').classList.remove('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-actions">
     <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>Create an organization</strong><span class="muted">Set up your sewing business and invite your team.</span></span><span class="onboarding-arrow">→</span></button>
     <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>Join an organization</strong><span class="muted">Scan the invitation from your owner to get started.</span></span><span class="onboarding-arrow">→</span></button>
@@ -999,7 +1119,7 @@ function hideOnboarding() {
   $('onboarding').hidden = true;
   const panel = document.querySelector('.onboarding-panel');
   const x = panel.querySelector('.onboarding-close');
-  panel.classList.remove('invite-mode');
+  panel.classList.remove('invite-mode', 'name-mode');
   x.dataset.act = 'onboarding-exit';
   x.setAttribute('aria-label', 'Exit organization setup');
   $('onboarding-title').textContent = 'Set up your workspace';
@@ -1335,6 +1455,7 @@ async function loadRealtimeProfile(sewerId) {
   return data.name;
 }
 async function applyRealtimeEntry(payload) {
+  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
   const index = entries.findIndex(e => String(e.id) === String(row.id));
@@ -1354,6 +1475,7 @@ async function applyRealtimeEntry(payload) {
   render();
 }
 function applyRealtimeRate(payload) {
+  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
   const key = rateKey(row.supplier, row.item, row.size);
@@ -1368,6 +1490,7 @@ function applyRealtimeRate(payload) {
   render();
 }
 function applyRealtimeCatalog(payload) {
+  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row || !catalog[row.kind]) return;
   if (payload.eventType === 'DELETE') {
@@ -1385,11 +1508,11 @@ function subscribeRealtime() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'entries'}, applyRealtimeEntry)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_rates'}, applyRealtimeRate)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_catalog_values'}, applyRealtimeCatalog)
-    .on('postgres_changes', {event: '*', schema: 'public', table: 'salary_periods'}, async () => { await loadPeriods(); render(); })
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'salary_periods'}, async () => { if (!demoMode) { await loadPeriods(); render(); } })
     .subscribe(status => {
       realtimeState = status;
       renderTopbar();
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') refresh();
+      if (!demoMode && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) refresh();
     });
 }
 async function unsubscribeRealtime() {
@@ -1494,6 +1617,11 @@ async function authGoogle() {
   }
 }
 async function logout() {
+  if (demoMode) { exitDemoData(); return; }
+  if (!cloud) {
+    me = null; entries = []; people = []; profileNames.clear(); organization = null;
+    showAuth(); renderTopbar(); return;
+  }
   await unsubscribeRealtime();
   await sb.auth.signOut();
   me = null; entries = []; people = []; profileNames.clear(); organization = null;
@@ -1509,7 +1637,7 @@ async function removeEntry(id) {
   pendingDel = null;
   render();
 
-  if (!cloud) { saveEntries(); return; }
+  if (!remote()) { if (!demoMode) saveEntries(); return; }
 
   const {data, error} = await sb.from('entries').delete().eq('id', id).select();
   if (error || !data || data.length === 0) {
