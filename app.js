@@ -1110,8 +1110,8 @@ function showOnboardingChoices() {
   $('onboarding-title').textContent = 'Set up your workspace';
   document.querySelector('.onboarding-panel').classList.remove('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-actions">
-    <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>Create an organization</strong><span class="muted">Set up your sewing business and invite your team.</span></span><span class="onboarding-arrow">→</span></button>
-    <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>Join an organization</strong><span class="muted">Scan the invitation from your owner to get started.</span></span><span class="onboarding-arrow">→</span></button>
+    <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>Create an organization</strong></span><span class="onboarding-arrow">→</span></button>
+    <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>Join an organization</strong></span><span class="onboarding-arrow">→</span></button>
   </div>`;
   if (pendingInvite) showJoinOrganization();
 }
@@ -1178,6 +1178,8 @@ function closeScanner() {
   clearTimeout(scanTimer);
   $('scan-modal').hidden = true;
   document.querySelector('.scan-panel').classList.remove('done');
+  $('scan-loading').hidden = false;
+  $('qr-reader').hidden = false;
   stopScanner();
 }
 function scanSuccess() {
@@ -1192,6 +1194,9 @@ function scanInvite() {
     return;
   }
   $('scan-status').textContent = '';
+  $('scan-loading').innerHTML = loaderHTML('Tally', true) + '<span>Starting camera…</span>';
+  $('scan-loading').hidden = false;
+  $('qr-reader').hidden = true;
   $('scan-modal').hidden = false;
   const scanner = new Html5Qrcode('qr-reader');
   window.tallyQrScanner = scanner;
@@ -1209,7 +1214,10 @@ function scanInvite() {
       scanSuccess();
     },
     () => {}
-  ).catch(error => {
+  ).then(() => {
+    $('scan-loading').hidden = true;
+    $('qr-reader').hidden = false;
+  }).catch(error => {
     closeScanner();
     $('onboarding-status').textContent = 'Could not access the camera. Enter the six-digit code instead.';
     console.error('Could not start QR scanner:', error);
