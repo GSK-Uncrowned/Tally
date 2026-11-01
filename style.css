@@ -324,6 +324,7 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
 .fin-actions .btn,.fin-actions .primary{flex:1;height:48px;border-radius:99px;padding:0}
 .fin-actions .primary:disabled{opacity:.6}
 @media(min-width:800px){#fin-dlg{inset:50% auto auto 50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));border-bottom:1px solid var(--line);border-radius:20px;padding:24px}.fin-grab{display:none}#fin-dlg .onboarding-close{top:-12px;right:-12px}}
+@media(max-width:799px){.fin-bar{position:static;left:auto;right:auto;bottom:auto;width:auto;margin:24px 0 0;padding:18px 0 8px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--bg) 88%,transparent) 40%)}}
 /* Receipt popup */
 #receipt-dlg{width:min(420px,calc(100vw - 32px));padding:0}
 #receipt-dlg[open]{display:flex;flex-direction:column;max-height:min(86vh,720px)}
