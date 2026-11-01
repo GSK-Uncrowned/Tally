@@ -433,7 +433,7 @@ function sewersView() {
   const grand = names.reduce((t, n) => t + total(n), 0);
   let bar = '';
   if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">Reopen week</button><p class="muted fin-note">Entries for this week are locked.</p>`;
-  else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">Finalize week</button><p class="muted fin-note">Locks entries for ${weekText(s)}</p>`;
+  else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">Finalize week</button>`;
   return `<h1 class="page-title">Salary</h1>${weekNav('sw', s)}
     <div class="tot-l">Total sewer pay</div><div class="tot-v">${peso(grand)}</div>
     <div class="mini-grid">${names.map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
