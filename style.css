@@ -292,6 +292,7 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
   nav button{border-radius:99px;padding:11px 3px}
   nav button[aria-current=page]{margin:2px;box-shadow:0 3px 10px rgba(0,0,0,.16)}
   .fab{bottom:90px}
+  .fin-bar{position:static;margin:24px 0 0;padding:18px 0 8px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--bg) 88%,transparent) 40%)}
 }
 
 /* Week bar, big total, finalize bar, receipt */
