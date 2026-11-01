@@ -166,13 +166,13 @@ button.cell:active,.wbtn:active{transform:scale(.96)}
 .sal{font-size:1.4rem;letter-spacing:-.02em}
 .slog{display:flex;justify-content:space-between;gap:12px;min-width:0;padding:10px 0;border-top:1px solid var(--line)}
 .slog>div:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.mini-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
-.mini{display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .15s,transform .1s}
+.mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;min-width:0}
+.mini{display:flex;flex-direction:column;gap:2px;min-width:0;overflow:hidden;text-align:left;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .15s,transform .1s}
 .mini:hover{border-color:var(--ink)}
 .mini:active{transform:scale(.97)}
 .mini.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .mini .top{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0;margin-bottom:6px}
-.mini .top span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini .top span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mini strong{font-size:1.15rem;letter-spacing:-.02em}
 .mini .muted{color:inherit;opacity:.65;font-size:.8rem}
 .avatar.sm{width:26px;height:26px;font-size:.8rem}
@@ -287,9 +287,9 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
 }
 @media(max-width:799px){.fab{bottom:88px}}
 @media(max-width:799px){
-  main{padding-bottom:124px}
+  main{padding-bottom:190px}
   nav{bottom:16px;border-radius:99px;padding:3px;padding-bottom:3px}
-  nav button{border-radius:99px;padding:11px 3px}
+  nav button{min-width:0;border-radius:99px;padding:11px 1px;font-size:.78rem;white-space:nowrap}
   nav button[aria-current=page]{margin:2px;box-shadow:0 3px 10px rgba(0,0,0,.16)}
   .fab{bottom:90px}
   .fin-bar{position:static;margin:24px 0 0;padding:18px 0 8px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--bg) 88%,transparent) 40%)}
