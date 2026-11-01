@@ -93,9 +93,6 @@ main{width:100%;padding:48px 20px 150px;max-width:760px}
 .scan-modal{z-index:50}
 .scan-panel{position:relative}
 .scan-panel .qr-reader{margin-top:12px}
-.scan-loading{display:grid;place-items:center;gap:8px;min-height:220px;color:var(--muted);font-size:.9rem}
-.scan-loading .tl{color:var(--ink)}
-.scan-loading .tl-word{display:none}
 #scan-status{min-height:1.3em;margin:10px 0 0;font-size:.9rem}
 .scan-success{display:none;padding:8px 0 4px}
 .scan-panel.done .scan-main{display:none}

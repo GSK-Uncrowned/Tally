@@ -1178,8 +1178,6 @@ function closeScanner() {
   clearTimeout(scanTimer);
   $('scan-modal').hidden = true;
   document.querySelector('.scan-panel').classList.remove('done');
-  $('scan-loading').hidden = false;
-  $('qr-reader').hidden = false;
   stopScanner();
 }
 function scanSuccess() {
@@ -1194,9 +1192,6 @@ function scanInvite() {
     return;
   }
   $('scan-status').textContent = '';
-  $('scan-loading').innerHTML = loaderHTML('Tally', true) + '<span>Starting camera…</span>';
-  $('scan-loading').hidden = false;
-  $('qr-reader').hidden = true;
   $('scan-modal').hidden = false;
   const scanner = new Html5Qrcode('qr-reader');
   window.tallyQrScanner = scanner;
@@ -1214,10 +1209,7 @@ function scanInvite() {
       scanSuccess();
     },
     () => {}
-  ).then(() => {
-    $('scan-loading').hidden = true;
-    $('qr-reader').hidden = false;
-  }).catch(error => {
+  ).catch(error => {
     closeScanner();
     $('onboarding-status').textContent = 'Could not access the camera. Enter the six-digit code instead.';
     console.error('Could not start QR scanner:', error);
