@@ -230,13 +230,14 @@ label{display:block;font-size:.85rem;color:var(--muted);margin:12px 0 4px}
 .primary{background:var(--ink);color:var(--bg);border:0;border-radius:10px;padding:10px 18px;font-weight:600}
 #err{color:var(--ink);font-size:.9rem;margin:10px 0 0;min-height:1.2em}
 @media(min-width:800px){
-.app{display:grid;grid-template-columns:180px 1fr}
-nav{position:sticky;top:16px;height:calc(100vh - 32px);flex-direction:column;border-radius:24px;padding:24px 10px;gap:6px;align-self:start;margin:16px 0 16px 16px;background:color-mix(in srgb,var(--surface) 90%,transparent);box-shadow:0 14px 36px rgba(0,0,0,.1);backdrop-filter:blur(14px)}
+.app{display:block}
+nav{position:fixed;top:16px;left:16px;bottom:16px;width:164px;height:auto;flex-direction:column;border-radius:24px;padding:24px 10px;gap:6px;background:color-mix(in srgb,var(--surface) 90%,transparent);box-shadow:0 14px 36px rgba(0,0,0,.1);backdrop-filter:blur(14px)}
 nav .brand{display:block;font-weight:700;font-size:1.5rem;letter-spacing:-.06em;padding:0 14px 40px}
 nav button{flex:none;text-align:left;padding:12px 14px;border-radius:13px;font-size:.95rem}
 nav button:hover{background:var(--hl);color:var(--ink)}
 nav button[aria-current=page]{background:var(--ink);color:var(--bg);box-shadow:0 6px 16px rgba(0,0,0,.14)}
 main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
+.workspace{margin-left:196px}
 .fab{bottom:32px;right:32px}
 .fin-bar{left:196px}
 }
@@ -323,8 +324,8 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
 .fin-actions{display:flex;gap:10px;margin-top:16px}
 .fin-actions .btn,.fin-actions .primary{flex:1;height:48px;border-radius:99px;padding:0}
 .fin-actions .primary:disabled{opacity:.6}
+@media(min-width:800px){.fin-bar{left:196px}}
 @media(min-width:800px){#fin-dlg{inset:50% auto auto 50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));border-bottom:1px solid var(--line);border-radius:20px;padding:24px}.fin-grab{display:none}#fin-dlg .onboarding-close{top:-12px;right:-12px}}
-@media(max-width:799px){.fin-bar{position:static;left:auto;right:auto;bottom:auto;width:auto;margin:24px 0 0;padding:18px 0 8px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--bg) 88%,transparent) 40%)}}
 /* Receipt popup */
 #receipt-dlg{width:min(420px,calc(100vw - 32px));padding:0}
 #receipt-dlg[open]{display:flex;flex-direction:column;max-height:min(86vh,720px)}
