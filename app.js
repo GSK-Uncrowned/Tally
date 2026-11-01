@@ -55,14 +55,16 @@ const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const authTest = ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
   new URLSearchParams(window.location.search).has('auth-test');
-let entries = [], me = null, people = [], organization = null;
+let entries = [], me = null, people = [], organization = null, periods = {};
 const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let realtimeChannel = null, realtimeState = 'DISCONNECTED';
+let demoMode = false, demoBackup = null;
 let view = 'log', sel = null, month = new Date(), pendingDel = null, swWeek = weekStart(new Date()), swSel = null, spSel = null, logWeek = weekStart(new Date()), spWeek = weekStart(new Date());
 let pendingInvite = new URLSearchParams(window.location.search).get('invite') || '';
 const isOwner = () => me && me.role === 'owner';
 const isSewer = () => me && me.role === 'sewer';
+const remote = () => cloud && !demoMode;
 let wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
 month.setDate(1);
 
@@ -82,6 +84,64 @@ function enrichEntries() {
     e.price = Number(e.price) || r.price;
     e.pay = Number(e.pay) || r.pay;
   });
+}
+// ---- Finalized weeks (locked, with saved payslips) ----
+const PKEY = 'tally-periods-v1';
+const isLocked = d => !!periods[ymd(weekStart(parse(d)))];
+function savePeriods() { try { localStorage.setItem(PKEY, JSON.stringify(periods)); } catch (e) {} }
+async function loadPeriods() {
+  if (demoMode) return;
+  if (!cloud) { try { periods = JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { periods = {}; } return; }
+  const {data, error} = await sb.from('salary_periods').select('week_start, finalized_at, salary_statements(sewer_id, sewer_name, pieces, total, lines)').eq('organization_id', organization.id);
+  periods = {};
+  if (error) return; // the table may not exist yet: the app still works, weeks just can't be finalized
+  (data || []).forEach(p => { periods[p.week_start] = {finalized_at: p.finalized_at, statements: p.salary_statements || []}; });
+}
+if (!cloud) loadPeriods();
+function buildStatements(ws) {
+  const a = ymd(ws), b = ymd(addDays(ws, 6)), by = {};
+  entries.filter(e => e.date >= a && e.date <= b && e.sewer).forEach(e => {
+    const k = e.sewer_id || e.sewer;
+    const st = by[k] = by[k] || {sewer_id: e.sewer_id || null, sewer_name: e.sewer, pieces: 0, total: 0, rows: {}};
+    const lk = [e.client, e.item, e.color, e.size, e.pay].join('|').toLowerCase();
+    const l = st.rows[lk] = st.rows[lk] || {supplier: e.client, item: e.item, color: e.color, size: e.size, qty: 0, pay: e.pay};
+    l.qty += e.qty; st.pieces += e.qty; st.total += e.qty * e.pay;
+  });
+  return Object.values(by).map(st => ({sewer_id: st.sewer_id, sewer_name: st.sewer_name, pieces: st.pieces, total: st.total,
+    lines: Object.values(st.rows).sort((x, y) => textCmp(x.supplier, y.supplier) || textCmp(x.item, y.item))}));
+}
+async function finalizeWeek(ws) {
+  const key = ymd(ws), statements = buildStatements(ws);
+  if (remote()) {
+    const {error} = await sb.rpc('finalize_week', {target_organization: organization.id, target_week: key, statements});
+    if (error) { alert('Could not finalize this week: ' + error.message + '\n(If it mentions a missing function, run supabase-finalize.sql in Supabase first.)'); return false; }
+    await loadPeriods();
+  } else { periods[key] = {finalized_at: new Date().toISOString(), statements}; if (!demoMode) savePeriods(); }
+  return true;
+}
+async function reopenWeek(ws) {
+  const key = ymd(ws);
+  if (remote()) {
+    const {error} = await sb.rpc('reopen_week', {target_organization: organization.id, target_week: key});
+    if (error) { alert('Could not reopen this week: ' + error.message); return false; }
+    await loadPeriods();
+  } else { delete periods[key]; if (!demoMode) savePeriods(); }
+  return true;
+}
+const LOCKI = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const DLI = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>';
+const weekText = ws => short(ws) + ' – ' + short(addDays(ws, 6));
+function weekNav(act, s) {
+  const cur = s >= weekStart(new Date()), p = periods[ymd(s)];
+  const pill = p ? `<span class="wk-pill on">${LOCKI}Finalized · ${short(new Date(p.finalized_at))}</span>` : `<span class="wk-pill">${cur ? 'In progress' : 'Not finalized'}</span>`;
+  return `<div class="weekbar"><button class="wk-arr" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
+    <div class="wl">${weekText(s)}<br>${pill}</div>
+    <button class="wk-arr" data-act="${act}" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>`;
+}
+function monthNav() {
+  return `<div class="weekbar"><button class="wk-arr" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
+    <div class="wl">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</div>
+    <button class="wk-arr" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>`;
 }
 function catalogValues(kind) {
   const values = new Set(catalog[kind] || []);
@@ -189,6 +249,7 @@ function dayLabel(s) {
 function entryPanel(e, del, noClient) {
   const r = currentRate(e);
   const missing = !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size));
+  del = del && !isLocked(e.date);
   const w = del && pendingDel == e.id;
   return `<div class="panel ${w ? 'warn' : ''}">
     <div class="main"><div class="title"><strong>${esc(noClient ? e.item : e.client)}</strong>${e.sewer ? `<span class="tag">by ${esc(e.sewer)}</span>` : ''}</div>
@@ -209,13 +270,9 @@ function weekLabel(ws) {
 }
 function logView() {
   const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
-  const nextDisabled = s >= weekStart(new Date());
   const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
-  const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
-  let out = `<h1 class="page-title">Log</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
-      <button class="btn" data-act="lw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="lw" data-d="1" aria-label="Next week" ${nextDisabled ? 'disabled' : ''}>›</button></div>`, last = '';
+  let out = `<h1 class="page-title">Log</h1>${weekNav('lw', s)}` +
+    (periods[a] ? '<p class="muted fin-note" style="text-align:left;margin:0 0 4px">This week is finalized, so its entries are locked.</p>' : ''), last = '';
   list.forEach(e => {
     if (e.date !== last) { out += `<div class="day">${dayLabel(e.date)}</div>`; last = e.date; }
     out += entryPanel(e, canDelete());
@@ -233,26 +290,24 @@ function myLogView() {
 }
 
 function mySalaryView() {
-  const s = swWeek, end = addDays(s, 6), a = ymd(s), b = ymd(end);
+  const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const list = entries.filter(e => e.sewer_id === me.id && e.date >= a && e.date <= b);
   const total = list.reduce((sum, e) => sum + e.qty * e.pay, 0);
   const pieces = list.reduce((sum, e) => sum + e.qty, 0);
   const bySupplier = group(list, 'client');
   const detail = Object.keys(bySupplier).sort().map(supplier => {
     const rows = bySupplier[supplier].slice().sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
-    const supplierTotal = rows.reduce((sum, e) => sum + e.qty * e.pay, 0);
-    return `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong><span>${peso(supplierTotal)}</span></div><div class="kids">` +
+    return `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong><span>${peso(rows.reduce((sum, e) => sum + e.qty * e.pay, 0))}</span></div><div class="kids">` +
       rows.map(e => `<div class="slog"><div><div>${esc(e.item)}</div><div class="muted">${esc(e.color)}, ${esc(e.size)}, ${dayLabel(e.date)}</div></div>
-        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') +
-      '</div></div>';
+        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
-  const current = a === ymd(weekStart(new Date()));
-  return `<h1 class="page-title">My salary</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(end)}${current ? ' (this week)' : ''}</span>
-      <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="sw" data-d="1" aria-label="Next week" ${current ? 'disabled' : ''}>›</button></div>
-    <div class="stats"><div class="stat"><span class="muted">Salary</span><b>${peso(total)}</b></div><div class="stat"><span class="muted">Pieces</span><b>${pieces.toLocaleString()}</b></div></div>
-    ${detail || '<p class="empty">No logs this week.</p>'}`;
+  const p = periods[a], st = p && (p.statements || []).find(x => x.sewer_id === me.id);
+  const foot = st ? `<button class="fin-btn" data-act="slip" data-self="1">${DLI}Download payslip</button>`
+    : p ? '' : '<p class="muted fin-note">In progress, not final. You can download your payslip once the owner finalizes the week.</p>';
+  const bar = foot ? '<div class="fin-bar">' + foot + '</div>' : '';
+  return `<h1 class="page-title">My salary</h1>${weekNav('sw', s)}
+    <div class="tot-l">Your pay</div><div class="tot-v">${peso(total)}</div><p class="muted" style="margin:0">${pieces.toLocaleString()} pieces</p>
+    ${detail || '<p class="empty">No logs this week.</p>'}${bar}`;
 }
 
 function myFinanceView() {
@@ -275,8 +330,7 @@ function myFinanceView() {
     }
   }
   const detail = myFinanceDetail(list);
-  return `<h1 class="page-title">My finance</h1><div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
-    <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button><button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
+  return `<h1 class="page-title">My finance</h1>${monthNav()}
     <div class="stats"><div class="stat"><span class="muted">Your earnings</span><b>${peso(monthTotal)}</b></div></div>
     <div class="cal" style="margin-top:20px">${cells}</div><div id="detail">${detail}</div>`;
 }
@@ -354,9 +408,7 @@ function financeView() {
     }
   }
   return `<h1 class="page-title">Finance</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
-      <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
-      <button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
+    ${monthNav()}
     ${stats(monthTotal, monthPay)}
     <div class="cal" style="margin-top:20px">${cells}</div>
     <div id="detail">${detailView()}</div>`;
@@ -374,29 +426,164 @@ function group(list, f) {
   return by;
 }
 function sewersView() {
-  const s = swWeek, e = addDays(s, 6), a = ymd(s), b = ymd(e);
+  const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const by = group(entries.filter(x => x.date >= a && x.date <= b && x.sewer), 'sewer');
-  const cur = a === ymd(weekStart(new Date()));
+  const p = periods[a], names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
-  let detail = '';
-  if (swSel) {
-    const rows = by[swSel] || [], sup = group(rows, 'client');
-    detail = rows.length
-      ? `<p class="muted" style="margin-top:24px">${pcs(swSel).toLocaleString()} pieces, ${peso(total(swSel))} salary this week</p>` +
-        Object.keys(sup).sort().map(c => {
-          const l = sup[c].sort((p, q) => q.date.localeCompare(p.date) || q.id - p.id);
-          return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
-            l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
-              <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
-        }).join('')
-      : '<p class="empty">No logs this week.</p>';
+  const grand = names.reduce((t, n) => t + total(n), 0);
+  let bar = '';
+  if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">Reopen week</button><p class="muted fin-note">Entries for this week are locked.</p>`;
+  else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">Finalize week</button><p class="muted fin-note">Locks entries for ${weekText(s)}</p>`;
+  return `<h1 class="page-title">Salary</h1>${weekNav('sw', s)}
+    <div class="tot-l">Total sewer pay</div><div class="tot-v">${peso(grand)}</div>
+    <div class="mini-grid">${names.map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
+    (names.length ? '' : '<p class="empty">No sewers were logged this week.</p>') + (bar ? `<div class="fin-bar">${bar}</div>` : '');
+}
+// The receipt: tap a sewer or supplier card to see everything for that week in a scrollable popup
+function openReceipt(kind, n) {
+  const ws = kind === 'sewer' ? swWeek : spWeek, a = ymd(ws), b = ymd(addDays(ws, 6));
+  let rows, body, total, foot = '';
+  if (kind === 'sewer') {
+    rows = entries.filter(x => x.date >= a && x.date <= b && x.sewer === n);
+    total = rows.reduce((t, x) => t + x.qty * x.pay, 0);
+    const sup = group(rows, 'client');
+    body = Object.keys(sup).sort().map(c => {
+      const l = sup[c].sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
+      return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
+        l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
+          <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
+    }).join('');
+    foot = periods[a] ? `<button class="fin-btn" data-act="slip" data-n="${esc(n)}">${DLI}Download payslip</button>`
+      : '<p class="muted fin-note">Not final yet. You can download the payslip after the week is finalized.</p>';
+  } else {
+    rows = entries.filter(x => x.date >= a && x.date <= b && x.client === n);
+    total = rows.reduce((t, x) => t + cmp(x), 0);
+    body = sewerTree(rows);
   }
-  return `<h1 class="page-title">Salary</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(e)}${cur ? ' (this week)' : ''}</span>
-      <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="sw" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>
-    <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', swSel === n)).join('')}</div>` +
-    (Object.keys(by).length ? '' : '<p class="empty">No sewers were logged this week.</p>') + `<div id="detail">${detail}</div>`;
+  const pieces = rows.reduce((t, x) => t + x.qty, 0);
+  $('receipt-dlg').innerHTML = `<button class="onboarding-close" data-act="receipt-close" aria-label="Close">&times;</button>
+    <div class="rc-head"><div class="rc-brand">Tally</div><div class="rc-name">${esc(n)}</div><div class="muted">${weekText(ws)} · ${pieces.toLocaleString()} pieces</div></div>
+    <div class="rc-body">${body || '<p class="empty">Nothing this week.</p>'}</div>
+    <div class="rc-foot"><div class="rc-total"><span>${kind === 'sewer' ? 'Total pay' : 'Total'}</span><span>${peso(total)}</span></div>${foot}</div>`;
+  $('receipt-dlg').showModal();
+}
+function openFinalizeSheet() {
+  const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
+  const list = entries.filter(x => x.date >= a && x.date <= b && x.sewer), by = group(list, 'sewer');
+  const names = Object.keys(by).sort(), tot = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0);
+  const missing = list.filter(e => !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size))).length;
+  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="Close">&times;</button><div class="fin-grab"></div><h2>Finalize ${weekText(s)}?</h2><p class="muted">Pay for this week, per sewer</p>` +
+    `<div class="fin-scroll">${names.map(n => `<div class="fin-row"><span>${esc(n)}</span><span>${peso(tot(n))}</span></div>`).join('')}</div>` +
+    `<div class="fin-row fin-total"><span>Total</span><span>${peso(names.reduce((t, n) => t + tot(n), 0))}</span></div>` +
+    (missing ? `<div class="fin-warn"><strong>${missing} ${missing === 1 ? 'entry has' : 'entries have'} no rate yet.</strong> Set ${missing === 1 ? 'it' : 'them'} in Setup first so nobody is underpaid.</div>` : '') +
+    `<p class="muted">After this, entries for this week can’t be added or deleted, and each sewer gets a saved payslip. You can reopen the week later.</p>
+    <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="fin-go">Finalize</button></div>`;
+  $('fin-dlg').showModal();
+}
+function openReopenSheet() {
+  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="Close">&times;</button><div class="fin-grab"></div><h2>Reopen ${weekText(swWeek)}?</h2>
+    <p class="muted">The week unlocks and its saved payslips are removed. Finalize it again when you’re done.</p>
+    <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="reopen-go">Reopen</button></div>`;
+  $('fin-dlg').showModal();
+}
+async function runSheet(act, label, fn) {
+  const btn = $('fin-dlg').querySelector(`[data-act="${act}"]`);
+  btn.disabled = true; btn.textContent = label;
+  if (await fn(swWeek)) { $('fin-dlg').close(); render(); } else { btn.disabled = false; btn.textContent = label.replace('…', '').replace('Finalizing', 'Finalize').replace('Reopening', 'Reopen'); }
+}
+
+// ---- Payslip images ----
+function statementSection(st, withHead) {
+  const by = {};
+  (st.lines || []).forEach(l => (by[l.supplier] = by[l.supplier] || []).push(l));
+  return {head: withHead ? {name: st.sewer_name, total: peso(Number(st.total)), sub: Number(st.pieces).toLocaleString() + ' pieces'} : null,
+    groups: Object.keys(by).sort(textCmp).map(sup => ({s: sup, rows: by[sup].map(l => ({a: l.item,
+      b: [l.color, l.size].filter(v => v && v !== 'Any').join(', ') + (l.color === 'Any' && l.size === 'Any' ? '' : ' · ') + Number(l.qty).toLocaleString() + ' × ' + peso(Number(l.pay)),
+      c: peso(Number(l.qty) * Number(l.pay))}))}))};
+}
+async function drawSheet(o) {
+  await Promise.all(['54px "Gochi Hand"', '700 20px "DM Sans"', '600 20px "DM Sans"', '400 20px "DM Sans"'].map(f => document.fonts.load(f)));
+  const Wd = 720, P = 44, F = f => f + ' "DM Sans",sans-serif';
+  let h = 300;
+  o.sections.forEach((s, sectionIndex) => {
+    if (s.head) h += 110 + (sectionIndex ? 44 : 0);
+    s.groups.forEach((g, groupIndex) => { h += 56 + g.rows.length * 84 + (groupIndex ? 28 : 0); });
+    h += 24;
+  });
+  h += 230;
+  const c = document.createElement('canvas'); c.width = Wd; c.height = h;
+  const x = c.getContext('2d');
+  const fit = (t, w) => { while (t.length > 1 && x.measureText(t).width > w) t = t.slice(0, -2) + '…'; return t; };
+  x.fillStyle = '#fff'; x.fillRect(0, 0, Wd, h);
+  x.strokeStyle = '#111'; x.lineCap = 'round'; x.lineWidth = 6;
+  [[10, 11, 10.9, 38], [19, 10, 18.3, 39.5], [28, 12.5, 28.8, 37], [37, 10, 36.8, 38.5], [2.5, 37, 45.5, 12]].forEach(l => {
+    x.beginPath(); x.moveTo(P + l[0] * 1.6, P - 8 + l[1] * 1.6); x.lineTo(P + l[2] * 1.6, P - 8 + l[3] * 1.6); x.stroke();
+  });
+  x.fillStyle = '#111'; x.textBaseline = 'middle'; x.font = '54px "Gochi Hand",cursive';
+  x.fillText('Tally', P + 96, P - 8 + 39.6 + 2); // vertically centred on the logo marks
+  x.textBaseline = 'alphabetic';
+  x.fillStyle = '#6b6b6b'; x.font = F('600 22px'); x.fillText(o.title.toUpperCase(), P, 160);
+  x.fillStyle = '#111'; x.font = F('700 54px'); x.fillText(fit(o.name, Wd - 2 * P), P, 222);
+  x.fillStyle = '#6b6b6b'; x.font = F('400 26px'); x.fillText(o.sub, P, 266);
+  let y = 300;
+  o.sections.forEach((s, sectionIndex) => {
+    if (s.head && sectionIndex) {
+      y += 20;
+      x.strokeStyle = '#111'; x.lineWidth = 3; x.setLineDash([]);
+      x.beginPath(); x.moveTo(P, y); x.lineTo(Wd - P, y); x.stroke();
+      y += 24;
+    }
+    if (s.head) {
+      y += 44; x.fillStyle = '#111'; x.font = F('700 34px'); x.fillText(fit(s.head.name, 380), P, y);
+      x.textAlign = 'right'; x.fillText(s.head.total, Wd - P, y); x.textAlign = 'left';
+      y += 36; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(s.head.sub, P, y); y += 30;
+    }
+    s.groups.forEach((g, groupIndex) => {
+      if (groupIndex) {
+        y += 12;
+        x.strokeStyle = '#b8b8b8'; x.lineWidth = 2; x.setLineDash([]);
+        x.beginPath(); x.moveTo(P, y); x.lineTo(P + (Wd - 2 * P) * .52, y); x.stroke();
+        y += 16;
+      }
+      y += 40; x.fillStyle = '#6b6b6b'; x.font = F('600 20px'); x.fillText(g.s.toUpperCase(), P, y); y += 16;
+      g.rows.forEach(r => {
+        y += 34; x.fillStyle = '#111'; x.font = F('600 28px'); x.fillText(fit(r.a, Wd - 2 * P - 190), P, y);
+        x.textAlign = 'right'; x.fillText(r.c, Wd - P, y); x.textAlign = 'left';
+        y += 34; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(fit(r.b, Wd - 2 * P), P, y); y += 16;
+      });
+    });
+    if (s.head) { x.fillStyle = '#e6e6e6'; x.fillRect(P, y + 4, Wd - 2 * P, 2); }
+    y += 24;
+  });
+  y += 30; x.fillStyle = '#111'; x.fillRect(P, y, Wd - 2 * P, 3); y += 60;
+  x.font = F('600 30px'); x.fillText(o.totalLabel || 'Total pay', P, y);
+  x.textAlign = 'right'; x.font = F('700 46px'); x.fillText(o.total, Wd - P, y); x.textAlign = 'left';
+  y += 70; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(o.foot, P, y);
+  return c;
+}
+function saveCanvas(c, name) {
+  c.toBlob(b => {
+    const u = URL.createObjectURL(b), l = document.createElement('a');
+    l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 4000);
+  }, 'image/png');
+}
+const finDate = p => new Date(p.finalized_at).toLocaleDateString('en-PH', {month:'short', day:'numeric', year:'numeric'});
+async function downloadSlip(d) {
+  const key = ymd(swWeek), p = periods[key];
+  const st = p && (p.statements || []).find(x => d.self ? x.sewer_id === me.id : x.sewer_name === d.n);
+  if (!st) { alert('There is no saved payslip for this person.'); return; }
+  const c = await drawSheet({title: 'Payslip', name: st.sewer_name, sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: 'Finalized ' + finDate(p)});
+  saveCanvas(c, `Tally-payslip-${st.sewer_name.replace(/\s+/g, '-')}-${key}.png`);
+}
+async function downloadSummary() {
+  const key = ymd(swWeek), p = periods[key];
+  if (!p) return;
+  const sts = (p.statements || []).slice().sort((x, y) => textCmp(x.sewer_name, y.sewer_name));
+  const c = await drawSheet({title: 'Weekly salary report', name: (organization && organization.name) || 'All sewers', sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: sts.map(st => statementSection(st, true)), totalLabel: 'Total sewer pay', total: peso(sts.reduce((t, st) => t + Number(st.total), 0)), foot: 'Finalized ' + finDate(p)});
+  saveCanvas(c, `Tally-salary-report-${key}.png`);
 }
 
 // ---- Suppliers (the people the cloth comes from) ----
@@ -419,21 +606,16 @@ function sewerTree(list) {
         <div class="r"><strong>${peso(r.qty * r.price)}</strong><div class="muted">${r.qty.toLocaleString()} × ${peso(r.price)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
 }
-function weekBar(s, act) {
-  const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
-  const nextDisabled = s >= weekStart(new Date());
-  return `<div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
-    <button class="btn" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
-    <button class="btn" data-act="${act}" data-d="1" aria-label="Next week" ${nextDisabled ? 'disabled' : ''}>›</button></div>`;
-}
 function suppliersView() {
   const a = ymd(spWeek), b = ymd(addDays(spWeek, 6));
   const by = group(entries.filter(x => x.date >= a && x.date <= b && x.client), 'client');
+  const names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + cmp(x), 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
-  const detail = spSel ? `<h2 style="margin-top:28px;font-size:1.2rem">${esc(spSel)}</h2>` + (by[spSel] ? sewerTree(by[spSel]) : '<p class="empty">Nothing from them this week.</p>') : '';
-  return `<h1 class="page-title">Suppliers</h1>${weekBar(spWeek, 'sp')}
-    <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', spSel === n)).join('')}</div>` +
-    (Object.keys(by).length ? '' : '<p class="empty">No suppliers logged this week.</p>') + `<div id="detail">${detail}</div>`;
+  const grand = names.reduce((t, n) => t + total(n), 0);
+  return `<h1 class="page-title">Suppliers</h1>${weekNav('sp', spWeek)}
+    <div class="tot-l">Total from suppliers</div><div class="tot-v">${peso(grand)}</div>
+    <div class="mini-grid">${names.map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
+    (names.length ? '' : '<p class="empty">No suppliers logged this week.</p>');
 }
 
 // ---- Render + events ----
@@ -460,19 +642,81 @@ function setupView() {
 const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView, 'my-log': myLogView, 'my-finance': myFinanceView, 'my-salary': mySalaryView};
 function renderTopbar() {
   const topbar = $('topbar');
-  if (!cloud || !me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
+  if (!me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
   topbar.hidden = false;
   const realtimeLive = realtimeState === 'SUBSCRIBED';
-  topbar.innerHTML = `<span class="live-status ${realtimeLive ? 'live' : ''}" role="status" title="${realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting'}">
-      <span class="live-dot" aria-hidden="true"></span><span class="live-label">${realtimeLive ? 'Live' : 'Syncing'}</span>
+  topbar.innerHTML = `<span class="live-status ${demoMode ? 'demo-status' : (realtimeLive ? 'live' : '')}" role="status" title="${demoMode ? 'Demo data is isolated from your workspace' : (realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting')}">
+      <span class="live-dot" aria-hidden="true"></span><span class="live-label">${demoMode ? 'Demo' : (cloud ? (realtimeLive ? 'Live' : 'Syncing') : 'Local')}</span>
     </span><details class="profile-menu">
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
       <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? 'Owner' : 'Sewer'}</span></strong>
-      ${isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
-      <button class="menu-btn" data-act="logout">Log out</button>
+      ${demoMode ? '<button class="menu-btn" data-act="demo-exit">Back to my workspace</button>' : '<button class="menu-btn" data-act="demo-data">Try isolated demo data</button>'}
+      ${!demoMode && isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
+      ${demoMode ? '' : '<button class="menu-btn" data-act="logout">Log out</button>'}
     </div>
   </details>`;
+}
+function tryDemoData() {
+  if (demoMode) return;
+  demoBackup = {me, organization, entries, people, periods, rates, catalog, view, profileNames: new Map(profileNames)};
+  const owner = {id: 'demo-owner', name: 'Demo Owner', role: 'owner', active: true};
+  const sewers = [
+    {id: 'demo-sewer-1', name: 'Avery Santos', role: 'sewer', active: true},
+    {id: 'demo-sewer-2', name: 'Mika Reyes', role: 'sewer', active: true},
+    {id: 'demo-sewer-3', name: 'Jordan Cruz', role: 'sewer', active: true},
+    {id: 'demo-sewer-4', name: 'Casey Lim', role: 'sewer', active: true},
+    {id: 'demo-sewer-5', name: 'Riley Garcia', role: 'sewer', active: true}
+  ];
+  demoMode = true;
+  me = owner;
+  people = [owner, ...sewers];
+  organization = {id: 'demo-organization', name: 'Tally Demo Workspace'};
+  periods = {};
+  profileNames.clear();
+  people.forEach(person => profileNames.set(person.id, person.name));
+  const suppliers = ['Mia Fabrics', 'North Thread Co.', 'Golden Loom', 'Sew Good Supply', 'The Button House'];
+  const items = ['Dress', 'Blouse', 'Pants', 'Skirt', 'Uniform', 'Curtains', 'Pillowcase'];
+  const colors = ['Black', 'Navy', 'Cream', 'Sage', 'Rose', 'Denim', 'Mustard'];
+  const sizes = ['XS', 'Small', 'Medium', 'Large', 'XL', 'XXL'];
+  const demo = [];
+  const start = weekStart(addDays(new Date(), -84));
+  for (let i = 0; i < 180; i++) {
+    const day = addDays(start, (i * 11) % 91);
+    const supplier = suppliers[i % suppliers.length];
+    const item = items[(i * 3) % items.length];
+    const sewer = sewers[i % sewers.length];
+    demo.push({
+      id: `demo-${i}`, demo: true, date: ymd(day), item,
+      color: colors[(i * 5) % colors.length], size: sizes[(i * 7) % sizes.length],
+      client: supplier, qty: 2 + ((i * 17) % 29),
+      price: 85 + ((i * 23) % 116), pay: 18 + ((i * 7) % 28),
+      sewer: sewer.name, sewer_id: sewer.id, created_by: owner.id
+    });
+  }
+  entries = demo;
+  rates = [];
+  catalog = {item: [], color: [], size: [], supplier: []};
+  demo.forEach(e => {
+    const key = rateKey(e.client, e.item, e.size);
+    if (!rates.some(rate => rateKey(rate.supplier, rate.item, rate.size) === key)) {
+      rates.push({supplier: e.client, item: e.item, size: e.size, price: e.price, pay: e.pay});
+    }
+    [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
+      if (!catalog[kind].includes(value)) catalog[kind].push(value);
+    });
+  });
+  logWeek = weekStart(new Date()); swWeek = weekStart(new Date()); spWeek = weekStart(new Date());
+  render();
+}
+function exitDemoData() {
+  if (!demoMode || !demoBackup) return;
+  ({me, organization, entries, people, periods, rates, catalog, view} = demoBackup);
+  profileNames.clear();
+  demoBackup.profileNames.forEach((name, id) => profileNames.set(id, name));
+  demoBackup = null;
+  demoMode = false;
+  render();
 }
 function loaderHTML(label, small) {
   return `<div class="tl${small ? ' sm' : ''}" aria-hidden="true">
@@ -603,16 +847,17 @@ async function saveEntry() {
   saving = true;
   try {
     const v = wizard.values, e = {date: wizard.date, item: v.item, color: v.color || 'Any', size: v.size || 'Any',
-      client: v.client || 'Unknown', sewer: cloud ? me.name : '', qty: Number(v.qty)};
+      client: v.client || 'Unknown', sewer: demoMode ? me.name : (remote() ? me.name : ''), qty: Number(v.qty)};
     const r = currentRate(e);
     e.price = r.price; e.pay = r.pay;
+    if (isLocked(e.date)) { $('err').textContent = 'That week is finalized. Ask the owner to reopen it, or pick a date in an open week.'; return; }
 
-    if (!cloud) {
+    if (!remote()) {
       e.id = Date.now(); entries.push(e);
       [['item', e.item], ['color', e.color], ['size', e.size], ['supplier', e.client]].forEach(([kind, value]) => {
         if (!catalog[kind].includes(value)) catalog[kind].push(value);
       });
-      saveEntries(); saveLocalSetup();
+      if (!demoMode) { saveEntries(); saveLocalSetup(); }
       logWeek = weekStart(parse(e.date)); $('dlg').close(); render();
       return;
     }
@@ -689,6 +934,13 @@ document.addEventListener('click', ev => {
   else if (d.act === 'rate-add') { addRateFlow(); return; }
   else if (d.act === 'rate-edit') { openRateDialog(d.supplier, d.item, d.size); return; }
   else if (d.act === 'rate-cancel') { $('rate-dlg').close(); return; }
+  else if (d.act === 'fin-open') { openFinalizeSheet(); return; }
+  else if (d.act === 'reopen-open') { openReopenSheet(); return; }
+  else if (d.act === 'fin-close') { $('fin-dlg').close(); return; }
+  else if (d.act === 'fin-go') { runSheet('fin-go', 'Finalizing…', finalizeWeek); return; }
+  else if (d.act === 'reopen-go') { runSheet('reopen-go', 'Reopening…', reopenWeek); return; }
+  else if (d.act === 'slip') { downloadSlip(d); return; }
+  else if (d.act === 'sum') { downloadSummary(); return; }
   else if (d.act === 'rate-save') { saveRate(); return; }
   else if (d.act === 'catalog-add') { addCatalogValue(d.kind); return; }
   else if (d.act === 'ask') pendingDel = d.id;
@@ -705,9 +957,12 @@ document.addEventListener('click', ev => {
   else if (d.act === 'scan-invite') { scanInvite(); return; }
   else if (d.act === 'scan-close') { closeScanner(); return; }
   else if (d.act === 'onboarding-back') { showOnboarding(); return; }
+  else if (d.act === 'name-submit') { saveName(); return; }
   else if (d.act === 'onboarding-exit') { exitOnboarding(); return; }
   else if (d.act === 'onboarding-close') { hideOnboarding(); return; }
   else if (d.act === 'invite') { createInvite(); return; }
+  else if (d.act === 'demo-data') { tryDemoData(); return; }
+  else if (d.act === 'demo-exit') { exitDemoData(); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'week' || d.act === 'day') {
@@ -716,8 +971,9 @@ document.addEventListener('click', ev => {
   }
   else if (d.act === 'lw') logWeek = addDays(logWeek, 7 * Number(d.d));
   else if (d.act === 'sw') swWeek = addDays(swWeek, 7 * Number(d.d));
-  else if (d.act === 'sewer') swSel = swSel === d.n ? null : d.n;
-  else if (d.act === 'supplier') spSel = spSel === d.n ? null : d.n;
+  else if (d.act === 'sewer') { openReceipt('sewer', d.n); return; }
+  else if (d.act === 'receipt-close') { $('receipt-dlg').close(); return; }
+  else if (d.act === 'supplier') { openReceipt('supplier', d.n); return; }
   else if (d.act === 'sp') spWeek = addDays(spWeek, 7 * Number(d.d));
   else if (d.act === 'mshift') { month = new Date(month.getFullYear(), month.getMonth() + Number(d.d), 1); sel = null; }
   render();
@@ -734,6 +990,9 @@ document.addEventListener('keydown', ev => {
   if (ev.target.closest('#auth')) {
     ev.preventDefault();
     authGo();
+  } else if (ev.target.id === 'profile-name-in') {
+    ev.preventDefault();
+    saveName();
   } else if (ev.target.closest('#dlg')) {
     ev.preventDefault();
     wizardNext();
@@ -773,10 +1032,10 @@ async function saveRate() {
   const start = ymd(weekStart(new Date()));
   const inCurrentWeek = e => e.date >= start && e.date <= ymd(addDays(parse(start), 6)) &&
     rateKey(e.client, e.item, e.size) === rateKey(r.supplier, r.item, r.size);
-  const affected = entries.filter(inCurrentWeek);
+  const affected = entries.filter(e => inCurrentWeek(e) && !isLocked(e.date));
   const previousEntries = affected.map(e => ({e, price:e.price, pay:e.pay}));
   affected.forEach(e => { e.price = price; e.pay = pay; });
-  if (cloud) {
+  if (remote()) {
     const {error} = await sb.from('tally_rates').upsert({organization_id:organization.id, supplier:r.supplier, item:r.item, size:r.size, price, pay, created_by:me.id},
       {onConflict:'organization_id,supplier,item,size'});
     if (error) {
@@ -793,7 +1052,7 @@ async function saveRate() {
         $('rate-err').textContent = updateError.message; return;
       }
     }
-  } else { saveEntries(); saveLocalSetup(); }
+  } else if (!demoMode) { saveEntries(); saveLocalSetup(); }
   $('rate-dlg').close(); render();
 }
 async function addCatalogValue(kind) {
@@ -802,19 +1061,54 @@ async function addCatalogValue(kind) {
   if (!value || !value.trim()) return;
   const clean = value.trim();
   if (!catalog[kind].some(v => v.toLowerCase() === clean.toLowerCase())) catalog[kind].push(clean);
-  if (cloud) {
+  if (remote()) {
     const {error} = await sb.from('tally_catalog_values').insert({organization_id:organization.id, kind, value:clean, created_by:me.id});
     if (error && error.code !== '23505') { alert('Could not add option: ' + error.message); return; }
-  } else saveLocalSetup();
+  } else if (!demoMode) saveLocalSetup();
   render();
 }
 // ---- Cloud (Supabase) ----
 const canDelete = () => isOwner();
 let authMode = 'login';
+let nameConfirmedFor = null;
 function showOnboarding() {
   hideLoading();
   $('onboarding').hidden = false;
   $('onboarding-status').textContent = '';
+  if (nameConfirmedFor === me.id) showOnboardingChoices(); else showNameStep();
+}
+// First step for every new account: confirm the name teammates will see (Google names are not always real names)
+function showNameStep() {
+  $('onboarding-title').textContent = 'What’s your name?';
+  document.querySelector('.onboarding-panel').classList.add('name-mode');
+  $('onboarding-content').innerHTML = `<div class="onboarding-form">
+    <input class="in" id="profile-name-in" aria-label="Your name" placeholder="Name" autocomplete="name" maxlength="80" value="${esc(me.name || '')}">
+    <button class="primary" data-act="name-submit">Continue</button>
+  </div>`;
+  $('profile-name-in').focus();
+}
+async function saveName() {
+  const input = $('profile-name-in'), name = input.value.trim().replace(/\s+/g, ' ');
+  if (name.length < 2) { input.classList.add('invalid'); $('onboarding-status').textContent = 'Please enter your name.'; return; }
+  input.classList.remove('invalid');
+  $('onboarding-status').textContent = '';
+  if (name !== me.name) {
+    let ok = false;
+    const r = await sb.from('profiles').update({name}).eq('id', me.id).select('id');
+    if (!r.error && r.data && r.data.length) ok = true;
+    else {
+      const f = await sb.rpc('set_profile_name', {new_name: name});
+      if (!f.error) ok = true; else $('onboarding-status').textContent = 'Could not save your name: ' + f.error.message;
+    }
+    if (!ok) return;
+    me.name = name;
+  }
+  nameConfirmedFor = me.id;
+  showOnboardingChoices();
+}
+function showOnboardingChoices() {
+  $('onboarding-title').textContent = 'Set up your workspace';
+  document.querySelector('.onboarding-panel').classList.remove('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-actions">
     <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>Create an organization</strong><span class="muted">Set up your sewing business and invite your team.</span></span><span class="onboarding-arrow">→</span></button>
     <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>Join an organization</strong><span class="muted">Scan the invitation from your owner to get started.</span></span><span class="onboarding-arrow">→</span></button>
@@ -825,7 +1119,7 @@ function hideOnboarding() {
   $('onboarding').hidden = true;
   const panel = document.querySelector('.onboarding-panel');
   const x = panel.querySelector('.onboarding-close');
-  panel.classList.remove('invite-mode');
+  panel.classList.remove('invite-mode', 'name-mode');
   x.dataset.act = 'onboarding-exit';
   x.setAttribute('aria-label', 'Exit organization setup');
   $('onboarding-title').textContent = 'Set up your workspace';
@@ -1143,6 +1437,7 @@ async function refresh() {
   catalog = {item: [], color: [], size: [], supplier: []};
   (catalogRes.data || []).forEach(x => { if (catalog[x.kind]) catalog[x.kind].push(x.value); });
   enrichEntries();
+  await loadPeriods();
 }
 function entryFromRow(r) {
   return {id: r.id, organization_id:r.organization_id, created_by:r.created_by, sewer_id:r.sewer_id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
@@ -1160,6 +1455,7 @@ async function loadRealtimeProfile(sewerId) {
   return data.name;
 }
 async function applyRealtimeEntry(payload) {
+  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
   const index = entries.findIndex(e => String(e.id) === String(row.id));
@@ -1179,6 +1475,7 @@ async function applyRealtimeEntry(payload) {
   render();
 }
 function applyRealtimeRate(payload) {
+  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
   const key = rateKey(row.supplier, row.item, row.size);
@@ -1193,6 +1490,7 @@ function applyRealtimeRate(payload) {
   render();
 }
 function applyRealtimeCatalog(payload) {
+  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row || !catalog[row.kind]) return;
   if (payload.eventType === 'DELETE') {
@@ -1210,10 +1508,11 @@ function subscribeRealtime() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'entries'}, applyRealtimeEntry)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_rates'}, applyRealtimeRate)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_catalog_values'}, applyRealtimeCatalog)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'salary_periods'}, async () => { if (!demoMode) { await loadPeriods(); render(); } })
     .subscribe(status => {
       realtimeState = status;
       renderTopbar();
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') refresh();
+      if (!demoMode && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) refresh();
     });
 }
 async function unsubscribeRealtime() {
@@ -1318,6 +1617,11 @@ async function authGoogle() {
   }
 }
 async function logout() {
+  if (demoMode) { exitDemoData(); return; }
+  if (!cloud) {
+    me = null; entries = []; people = []; profileNames.clear(); organization = null;
+    showAuth(); renderTopbar(); return;
+  }
   await unsubscribeRealtime();
   await sb.auth.signOut();
   me = null; entries = []; people = []; profileNames.clear(); organization = null;
@@ -1327,12 +1631,13 @@ async function removeEntry(id) {
   if (String(id).startsWith('tmp-')) return; // still saving, nothing to delete yet
   const removed = entries.find(e => e.id == id);
   if (!removed) return;
+  if (isLocked(removed.date)) { alert('This week is finalized. Reopen it first to delete entries.'); return; }
 
   entries = entries.filter(e => e.id != id);
   pendingDel = null;
   render();
 
-  if (!cloud) { saveEntries(); return; }
+  if (!remote()) { if (!demoMode) saveEntries(); return; }
 
   const {data, error} = await sb.from('entries').delete().eq('id', id).select();
   if (error || !data || data.length === 0) {
