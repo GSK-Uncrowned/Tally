@@ -17,36 +17,9 @@ const k = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(n
 const KEY = 'tally-entries-v2';
 const RATE_KEY = 'tally-rates-v1';
 const CATALOG_KEY = 'tally-catalog-v1';
-// [days ago, item, color, size, qty, from, price, sewer, sewer pay]
-const DEMO = [
-  [0,'Plain t-shirt','White','Medium',200,'Marvin',4,'Ana',1.5],[0,'Plain t-shirt','White','Small',400,'Marvin',4,'Ben',1.5],
-  [0,'Polo shirt','Navy','Large',60,'Aling Nena',35,'Carla',12],[1,'Plain t-shirt','White','Large',600,'Marvin',4,'Ana',1.5],
-  [1,'Apron','Black','Medium',80,'Ate Joy',20,'Dino',7],[1,'Pillowcase','Cream','Standard',150,'Mang Lito',15,'Elmer',5],
-  [2,'Polo shirt','Navy','Medium',80,'Aling Nena',35,'Carla',12],[2,'School uniform','Blue','Small',40,'Mang Lito',90,'Elmer',30],
-  [2,'Plain t-shirt','Black','Medium',300,'Marvin',4,'Ben',1.5],[3,'Apron','Red','Large',50,'Ate Joy',20,'Dino',7],
-  [3,'Barong','Ivory','Medium',6,'Aling Nena',350,'Carla',120],[4,'Plain t-shirt','Gray','Small',250,'Marvin',4,'Ana',1.5],
-  [5,'Curtains','Beige','Standard',24,'Mang Lito',120,'Elmer',40],[5,'Plain t-shirt','White','Medium',350,'Marvin',4,'Ben',1.5],
-  [6,'Polo shirt','Maroon','Large',45,'Aling Nena',35,'Carla',12],[8,'Plain t-shirt','Black','Large',500,'Marvin',4,'Ana',1.5],
-  [8,'Apron','Green','Medium',70,'Ate Joy',20,'Dino',7],[9,'School uniform','Blue','Medium',55,'Mang Lito',90,'Elmer',30],
-  [10,'Plain t-shirt','White','Small',420,'Marvin',4,'Ben',1.5],[10,'Polo shirt','Navy','Small',35,'Aling Nena',35,'Carla',12],
-  [11,'Pillowcase','White','Standard',200,'Mang Lito',15,'Elmer',5],[12,'Plain t-shirt','Gray','Large',380,'Marvin',4,'Ana',1.5],
-  [13,'Apron','Black','Large',90,'Ate Joy',20,'Dino',7],[15,'Barong','Cream','Large',8,'Aling Nena',350,'Carla',120],
-  [16,'Plain t-shirt','White','Medium',450,'Marvin',4,'Ben',1.5],[17,'Curtains','Gray','Standard',30,'Mang Lito',120,'Elmer',40],
-  [19,'Plain t-shirt','Black','Small',300,'Marvin',4,'Ana',1.5],[20,'School uniform','Blue','Large',60,'Mang Lito',90,'Dino',30],
-  [21,'Polo shirt','Navy','Medium',50,'Aling Nena',35,'Carla',12],
-  [0,'School uniform','Blue','Medium',25,'Mang Lito',90,'Ana',30],[1,'Polo shirt','Navy','Small',40,'Aling Nena',35,'Ana',12],
-  [2,'Pillowcase','White','Standard',120,'Mang Lito',15,'Ana',5],[2,'Apron','Green','Large',45,'Ate Joy',20,'Ana',7],
-  [9,'Polo shirt','Maroon','Medium',30,'Aling Nena',35,'Ana',12],[10,'Apron','Red','Medium',60,'Ate Joy',20,'Ana',7]
-];
-const DEMO_V = 3; // bump this when DEMO changes so old demo entries refresh
-function demoEntries() {
-  return DEMO.map((r, i) => ({id: 9e12 + i, date: ymd(addDays(new Date(), -r[0])), item: r[1], color: r[2], size: r[3],
-    qty: r[4], client: r[5], price: r[6], sewer: r[7], pay: r[8], demo: DEMO_V}));
-}
-function seed() { return demoEntries(); }
 function loadEntries() {
-  try { const s = localStorage.getItem(KEY); if (s) { const list = JSON.parse(s).map(e => ({sewer:'', pay:0, ...e})); return list.some(e => e.demo && e.demo !== DEMO_V) ? list.filter(e => !e.demo).concat(demoEntries()) : list; } } catch (e) {}
-  return seed();
+  try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s).filter(e => !e.demo).map(e => ({sewer:'', pay:0, ...e})); } catch (e) {}
+  return [];
 }
 function saveEntries() { try { localStorage.setItem(KEY, JSON.stringify(entries)); } catch (e) {} }
 function saveLocalSetup() {
@@ -77,12 +50,12 @@ function deriveLocalRates() {
 }
 
 // ---- State ----
-// Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally with demo data
+// Cloud mode turns on once config.js has real Supabase values; otherwise the app runs locally in the browser
 const cloud = typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR');
 const sb = cloud ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const authTest = ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
   new URLSearchParams(window.location.search).has('auth-test');
-let entries = [], me = null, people = [], demoMode = false, organization = null;
+let entries = [], me = null, people = [], organization = null, periods = {};
 const profileNames = new Map();
 let rates = [], catalog = {item: [], color: [], size: [], supplier: []};
 let realtimeChannel = null, realtimeState = 'DISCONNECTED';
@@ -109,6 +82,63 @@ function enrichEntries() {
     e.price = Number(e.price) || r.price;
     e.pay = Number(e.pay) || r.pay;
   });
+}
+// ---- Finalized weeks (locked, with saved payslips) ----
+const PKEY = 'tally-periods-v1';
+const isLocked = d => !!periods[ymd(weekStart(parse(d)))];
+function savePeriods() { try { localStorage.setItem(PKEY, JSON.stringify(periods)); } catch (e) {} }
+async function loadPeriods() {
+  if (!cloud) { try { periods = JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { periods = {}; } return; }
+  const {data, error} = await sb.from('salary_periods').select('week_start, finalized_at, salary_statements(sewer_id, sewer_name, pieces, total, lines)').eq('organization_id', organization.id);
+  periods = {};
+  if (error) return; // the table may not exist yet: the app still works, weeks just can't be finalized
+  (data || []).forEach(p => { periods[p.week_start] = {finalized_at: p.finalized_at, statements: p.salary_statements || []}; });
+}
+if (!cloud) loadPeriods();
+function buildStatements(ws) {
+  const a = ymd(ws), b = ymd(addDays(ws, 6)), by = {};
+  entries.filter(e => e.date >= a && e.date <= b && e.sewer).forEach(e => {
+    const k = e.sewer_id || e.sewer;
+    const st = by[k] = by[k] || {sewer_id: e.sewer_id || null, sewer_name: e.sewer, pieces: 0, total: 0, rows: {}};
+    const lk = [e.client, e.item, e.color, e.size, e.pay].join('|').toLowerCase();
+    const l = st.rows[lk] = st.rows[lk] || {supplier: e.client, item: e.item, color: e.color, size: e.size, qty: 0, pay: e.pay};
+    l.qty += e.qty; st.pieces += e.qty; st.total += e.qty * e.pay;
+  });
+  return Object.values(by).map(st => ({sewer_id: st.sewer_id, sewer_name: st.sewer_name, pieces: st.pieces, total: st.total,
+    lines: Object.values(st.rows).sort((x, y) => textCmp(x.supplier, y.supplier) || textCmp(x.item, y.item))}));
+}
+async function finalizeWeek(ws) {
+  const key = ymd(ws), statements = buildStatements(ws);
+  if (cloud) {
+    const {error} = await sb.rpc('finalize_week', {target_organization: organization.id, target_week: key, statements});
+    if (error) { alert('Could not finalize this week: ' + error.message + '\n(If it mentions a missing function, run supabase-finalize.sql in Supabase first.)'); return false; }
+    await loadPeriods();
+  } else { periods[key] = {finalized_at: new Date().toISOString(), statements}; savePeriods(); }
+  return true;
+}
+async function reopenWeek(ws) {
+  const key = ymd(ws);
+  if (cloud) {
+    const {error} = await sb.rpc('reopen_week', {target_organization: organization.id, target_week: key});
+    if (error) { alert('Could not reopen this week: ' + error.message); return false; }
+    await loadPeriods();
+  } else { delete periods[key]; savePeriods(); }
+  return true;
+}
+const LOCKI = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const DLI = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>';
+const weekText = ws => short(ws) + ' – ' + short(addDays(ws, 6));
+function weekNav(act, s) {
+  const cur = s >= weekStart(new Date()), p = periods[ymd(s)];
+  const pill = p ? `<span class="wk-pill on">${LOCKI}Finalized · ${short(new Date(p.finalized_at))}</span>` : `<span class="wk-pill">${cur ? 'In progress' : 'Not finalized'}</span>`;
+  return `<div class="weekbar"><button class="wk-arr" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
+    <div class="wl">${weekText(s)}<br>${pill}</div>
+    <button class="wk-arr" data-act="${act}" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>`;
+}
+function monthNav() {
+  return `<div class="weekbar"><button class="wk-arr" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
+    <div class="wl">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</div>
+    <button class="wk-arr" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>`;
 }
 function catalogValues(kind) {
   const values = new Set(catalog[kind] || []);
@@ -216,6 +246,7 @@ function dayLabel(s) {
 function entryPanel(e, del, noClient) {
   const r = currentRate(e);
   const missing = !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size));
+  del = del && !isLocked(e.date);
   const w = del && pendingDel == e.id;
   return `<div class="panel ${w ? 'warn' : ''}">
     <div class="main"><div class="title"><strong>${esc(noClient ? e.item : e.client)}</strong>${e.sewer ? `<span class="tag">by ${esc(e.sewer)}</span>` : ''}</div>
@@ -236,13 +267,11 @@ function weekLabel(ws) {
 }
 function logView() {
   const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
-  const nextDisabled = s >= weekStart(new Date());
   const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
-  const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
-  let out = `<h1 class="page-title">Log</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
-      <button class="btn" data-act="lw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="lw" data-d="1" aria-label="Next week" ${nextDisabled ? 'disabled' : ''}>›</button></div>`, last = '';
+  const pcs = list.reduce((t, e) => t + e.qty, 0);
+  let out = `<h1 class="page-title">Log</h1>${weekNav('lw', s)}
+    <div class="tot-l">Logged this week</div><div class="tot-v">${pcs.toLocaleString()} <span class="tot-u">pieces</span></div>` +
+    (periods[a] ? '<p class="muted fin-note" style="text-align:left;margin:0 0 4px">This week is finalized, so its entries are locked.</p>' : ''), last = '';
   list.forEach(e => {
     if (e.date !== last) { out += `<div class="day">${dayLabel(e.date)}</div>`; last = e.date; }
     out += entryPanel(e, canDelete());
@@ -260,26 +289,23 @@ function myLogView() {
 }
 
 function mySalaryView() {
-  const s = swWeek, end = addDays(s, 6), a = ymd(s), b = ymd(end);
+  const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const list = entries.filter(e => e.sewer_id === me.id && e.date >= a && e.date <= b);
   const total = list.reduce((sum, e) => sum + e.qty * e.pay, 0);
   const pieces = list.reduce((sum, e) => sum + e.qty, 0);
   const bySupplier = group(list, 'client');
   const detail = Object.keys(bySupplier).sort().map(supplier => {
     const rows = bySupplier[supplier].slice().sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
-    const supplierTotal = rows.reduce((sum, e) => sum + e.qty * e.pay, 0);
-    return `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong><span>${peso(supplierTotal)}</span></div><div class="kids">` +
+    return `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong><span>${peso(rows.reduce((sum, e) => sum + e.qty * e.pay, 0))}</span></div><div class="kids">` +
       rows.map(e => `<div class="slog"><div><div>${esc(e.item)}</div><div class="muted">${esc(e.color)}, ${esc(e.size)}, ${dayLabel(e.date)}</div></div>
-        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') +
-      '</div></div>';
+        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
-  const current = a === ymd(weekStart(new Date()));
-  return `<h1 class="page-title">My salary</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(end)}${current ? ' (this week)' : ''}</span>
-      <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="sw" data-d="1" aria-label="Next week" ${current ? 'disabled' : ''}>›</button></div>
-    <div class="stats"><div class="stat"><span class="muted">Salary</span><b>${peso(total)}</b></div><div class="stat"><span class="muted">Pieces</span><b>${pieces.toLocaleString()}</b></div></div>
-    ${detail || '<p class="empty">No logs this week.</p>'}`;
+  const p = periods[a], st = p && (p.statements || []).find(x => x.sewer_id === me.id);
+  const foot = st ? `<button class="fin-btn" data-act="slip" data-self="1">${DLI}Download payslip</button>`
+    : p ? '' : '<p class="muted fin-note">In progress, not final. You can download your payslip once the owner finalizes the week.</p>';
+  return `<h1 class="page-title">My salary</h1>${weekNav('sw', s)}
+    <div class="tot-l">Your pay</div><div class="tot-v">${peso(total)}</div><p class="muted" style="margin:0">${pieces.toLocaleString()} pieces</p>
+    ${detail || '<p class="empty">No logs this week.</p>'}${foot}`;
 }
 
 function myFinanceView() {
@@ -302,8 +328,7 @@ function myFinanceView() {
     }
   }
   const detail = myFinanceDetail(list);
-  return `<h1 class="page-title">My finance</h1><div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
-    <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button><button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
+  return `<h1 class="page-title">My finance</h1>${monthNav()}
     <div class="stats"><div class="stat"><span class="muted">Your earnings</span><b>${peso(monthTotal)}</b></div></div>
     <div class="cal" style="margin-top:20px">${cells}</div><div id="detail">${detail}</div>`;
 }
@@ -381,9 +406,7 @@ function financeView() {
     }
   }
   return `<h1 class="page-title">Finance</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</span>
-      <button class="btn" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
-      <button class="btn" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>
+    ${monthNav()}
     ${stats(monthTotal, monthPay)}
     <div class="cal" style="margin-top:20px">${cells}</div>
     <div id="detail">${detailView()}</div>`;
@@ -403,27 +426,127 @@ function group(list, f) {
 function sewersView() {
   const s = swWeek, e = addDays(s, 6), a = ymd(s), b = ymd(e);
   const by = group(entries.filter(x => x.date >= a && x.date <= b && x.sewer), 'sewer');
-  const cur = a === ymd(weekStart(new Date()));
+  const p = periods[a], names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
-  let detail = '';
-  if (swSel) {
-    const rows = by[swSel] || [], sup = group(rows, 'client');
-    detail = rows.length
-      ? `<p class="muted" style="margin-top:24px">${pcs(swSel).toLocaleString()} pieces, ${peso(total(swSel))} salary this week</p>` +
-        Object.keys(sup).sort().map(c => {
-          const l = sup[c].sort((p, q) => q.date.localeCompare(p.date) || q.id - p.id);
-          return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
-            l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
-              <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
-        }).join('')
-      : '<p class="empty">No logs this week.</p>';
-  }
-  return `<h1 class="page-title">Salary</h1>
-    <div class="bar"><span class="sp" style="text-align:left">${short(s)} to ${short(e)}${cur ? ' (this week)' : ''}</span>
-      <button class="btn" data-act="sw" data-d="-1" aria-label="Previous week">‹</button>
-      <button class="btn" data-act="sw" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>
-    <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', swSel === n)).join('')}</div>` +
-    (Object.keys(by).length ? '' : '<p class="empty">No sewers were logged this week.</p>') + `<div id="detail">${detail}</div>`;
+  const grand = names.reduce((t, n) => t + total(n), 0);
+  const detailFor = n => {
+    const sup = group(by[n], 'client');
+    return Object.keys(sup).sort().map(c => {
+      const l = sup[c].sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
+      return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
+        l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
+          <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
+    }).join('') + (p ? `<button class="fin-btn ghost" data-act="slip" data-n="${esc(n)}">${DLI}Download payslip</button>` : '');
+  };
+  const cards = names.map(n => `<div class="scard ${swSel === n ? 'on' : ''}"><button class="scard-head" data-act="sewer" data-n="${esc(n)}" aria-expanded="${swSel === n}"><span><b>${esc(n)}</b><small>${pcs(n).toLocaleString()} pieces</small></span><span class="amt">${peso(total(n))}</span></button>${swSel === n ? `<div class="scard-body">${detailFor(n)}</div>` : ''}</div>`).join('');
+  let foot = '';
+  if (p) foot = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">Reopen week</button><p class="muted fin-note">Entries for this week are locked.</p>`;
+  else if (names.length) foot = `<button class="fin-btn" data-act="fin-open">Finalize week</button><p class="muted fin-note">Locks entries for ${weekText(s)}</p>`;
+  return `<h1 class="page-title">Salary</h1>${weekNav('sw', s)}
+    <div class="tot-l">Total sewer pay</div><div class="tot-v">${peso(grand)}</div>` + cards +
+    (names.length ? '' : '<p class="empty">No sewers were logged this week.</p>') + foot;
+}
+function openFinalizeSheet() {
+  const s = swWeek, a = ymd(s), b = ymd(addDays(s, 6));
+  const list = entries.filter(x => x.date >= a && x.date <= b && x.sewer), by = group(list, 'sewer');
+  const names = Object.keys(by).sort(), tot = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0);
+  const missing = list.filter(e => !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size))).length;
+  $('fin-dlg').innerHTML = `<div class="fin-grab"></div><h2>Finalize ${weekText(s)}?</h2><p class="muted">Pay for this week, per sewer</p>` +
+    names.map(n => `<div class="fin-row"><span>${esc(n)}</span><span>${peso(tot(n))}</span></div>`).join('') +
+    `<div class="fin-row fin-total"><span>Total</span><span>${peso(names.reduce((t, n) => t + tot(n), 0))}</span></div>` +
+    (missing ? `<div class="fin-warn"><strong>${missing} ${missing === 1 ? 'entry has' : 'entries have'} no rate yet.</strong> Set ${missing === 1 ? 'it' : 'them'} in Setup first so nobody is underpaid.</div>` : '') +
+    `<p class="muted">After this, entries for this week can’t be added or deleted, and each sewer gets a saved payslip. You can reopen the week later.</p>
+    <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="fin-go">Finalize</button></div>`;
+  $('fin-dlg').showModal();
+}
+function openReopenSheet() {
+  $('fin-dlg').innerHTML = `<div class="fin-grab"></div><h2>Reopen ${weekText(swWeek)}?</h2>
+    <p class="muted">The week unlocks and its saved payslips are removed. Finalize it again when you’re done.</p>
+    <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="reopen-go">Reopen</button></div>`;
+  $('fin-dlg').showModal();
+}
+async function runSheet(act, label, fn) {
+  const btn = $('fin-dlg').querySelector(`[data-act="${act}"]`);
+  btn.disabled = true; btn.textContent = label;
+  if (await fn(swWeek)) { $('fin-dlg').close(); render(); } else { btn.disabled = false; btn.textContent = label.replace('…', '').replace('Finalizing', 'Finalize').replace('Reopening', 'Reopen'); }
+}
+
+// ---- Payslip images ----
+function statementSection(st, withHead) {
+  const by = {};
+  (st.lines || []).forEach(l => (by[l.supplier] = by[l.supplier] || []).push(l));
+  return {head: withHead ? {name: st.sewer_name, total: peso(Number(st.total)), sub: Number(st.pieces).toLocaleString() + ' pieces'} : null,
+    groups: Object.keys(by).sort(textCmp).map(sup => ({s: sup, rows: by[sup].map(l => ({a: l.item,
+      b: [l.color, l.size].filter(v => v && v !== 'Any').join(', ') + (l.color === 'Any' && l.size === 'Any' ? '' : ' · ') + Number(l.qty).toLocaleString() + ' × ' + peso(Number(l.pay)),
+      c: peso(Number(l.qty) * Number(l.pay))}))}))};
+}
+async function drawSheet(o) {
+  await Promise.all(['54px "Gochi Hand"', '700 20px "DM Sans"', '600 20px "DM Sans"', '400 20px "DM Sans"'].map(f => document.fonts.load(f)));
+  const Wd = 720, P = 44, F = f => f + ' "DM Sans",sans-serif';
+  let h = 300;
+  o.sections.forEach(s => { if (s.head) h += 110; s.groups.forEach(g => { h += 56 + g.rows.length * 84; }); h += 24; });
+  h += 230;
+  const c = document.createElement('canvas'); c.width = Wd; c.height = h;
+  const x = c.getContext('2d');
+  const fit = (t, w) => { while (t.length > 1 && x.measureText(t).width > w) t = t.slice(0, -2) + '…'; return t; };
+  x.fillStyle = '#fff'; x.fillRect(0, 0, Wd, h);
+  x.strokeStyle = '#111'; x.lineCap = 'round'; x.lineWidth = 6;
+  [[10, 11, 10.9, 38], [19, 10, 18.3, 39.5], [28, 12.5, 28.8, 37], [37, 10, 36.8, 38.5], [2.5, 37, 45.5, 12]].forEach(l => {
+    x.beginPath(); x.moveTo(P + l[0] * 1.6, P - 8 + l[1] * 1.6); x.lineTo(P + l[2] * 1.6, P - 8 + l[3] * 1.6); x.stroke();
+  });
+  x.fillStyle = '#111'; x.textBaseline = 'middle'; x.font = '54px "Gochi Hand",cursive';
+  x.fillText('Tally', P + 96, P - 8 + 39.6 + 2); // vertically centred on the logo marks
+  x.textBaseline = 'alphabetic';
+  x.fillStyle = '#6b6b6b'; x.font = F('600 22px'); x.fillText(o.title.toUpperCase(), P, 160);
+  x.fillStyle = '#111'; x.font = F('700 54px'); x.fillText(fit(o.name, Wd - 2 * P), P, 222);
+  x.fillStyle = '#6b6b6b'; x.font = F('400 26px'); x.fillText(o.sub, P, 266);
+  let y = 300;
+  o.sections.forEach(s => {
+    if (s.head) {
+      y += 44; x.fillStyle = '#111'; x.font = F('700 34px'); x.fillText(fit(s.head.name, 380), P, y);
+      x.textAlign = 'right'; x.fillText(s.head.total, Wd - P, y); x.textAlign = 'left';
+      y += 36; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(s.head.sub, P, y); y += 30;
+    }
+    s.groups.forEach(g => {
+      y += 40; x.fillStyle = '#6b6b6b'; x.font = F('600 20px'); x.fillText(g.s.toUpperCase(), P, y); y += 16;
+      g.rows.forEach(r => {
+        y += 34; x.fillStyle = '#111'; x.font = F('600 28px'); x.fillText(fit(r.a, Wd - 2 * P - 190), P, y);
+        x.textAlign = 'right'; x.fillText(r.c, Wd - P, y); x.textAlign = 'left';
+        y += 34; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(fit(r.b, Wd - 2 * P), P, y); y += 16;
+      });
+    });
+    if (s.head) { x.fillStyle = '#e6e6e6'; x.fillRect(P, y + 4, Wd - 2 * P, 2); }
+    y += 24;
+  });
+  y += 30; x.fillStyle = '#111'; x.fillRect(P, y, Wd - 2 * P, 3); y += 60;
+  x.font = F('600 30px'); x.fillText(o.totalLabel || 'Total pay', P, y);
+  x.textAlign = 'right'; x.font = F('700 46px'); x.fillText(o.total, Wd - P, y); x.textAlign = 'left';
+  y += 70; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(o.foot, P, y);
+  return c;
+}
+function saveCanvas(c, name) {
+  c.toBlob(b => {
+    const u = URL.createObjectURL(b), l = document.createElement('a');
+    l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 4000);
+  }, 'image/png');
+}
+const finDate = p => new Date(p.finalized_at).toLocaleDateString('en-PH', {month:'short', day:'numeric', year:'numeric'});
+async function downloadSlip(d) {
+  const key = ymd(swWeek), p = periods[key];
+  const st = p && (p.statements || []).find(x => d.self ? x.sewer_id === me.id : x.sewer_name === d.n);
+  if (!st) { alert('There is no saved payslip for this person.'); return; }
+  const c = await drawSheet({title: 'Payslip', name: st.sewer_name, sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: 'Finalized ' + finDate(p)});
+  saveCanvas(c, `Tally-payslip-${st.sewer_name.replace(/\s+/g, '-')}-${key}.png`);
+}
+async function downloadSummary() {
+  const key = ymd(swWeek), p = periods[key];
+  if (!p) return;
+  const sts = (p.statements || []).slice().sort((x, y) => textCmp(x.sewer_name, y.sewer_name));
+  const c = await drawSheet({title: 'Weekly salary report', name: (organization && organization.name) || 'All sewers', sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: sts.map(st => statementSection(st, true)), totalLabel: 'Total sewer pay', total: peso(sts.reduce((t, st) => t + Number(st.total), 0)), foot: 'Finalized ' + finDate(p)});
+  saveCanvas(c, `Tally-salary-report-${key}.png`);
 }
 
 // ---- Suppliers (the people the cloth comes from) ----
@@ -446,21 +569,16 @@ function sewerTree(list) {
         <div class="r"><strong>${peso(r.qty * r.price)}</strong><div class="muted">${r.qty.toLocaleString()} × ${peso(r.price)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
 }
-function weekBar(s, act) {
-  const label = weekLabel(s), range = short(s) + ' to ' + short(addDays(s, 6));
-  const nextDisabled = s >= weekStart(new Date());
-  return `<div class="bar"><span class="sp" style="text-align:left">${label}${label !== range ? ` <span class="muted">${range}</span>` : ''}</span>
-    <button class="btn" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
-    <button class="btn" data-act="${act}" data-d="1" aria-label="Next week" ${nextDisabled ? 'disabled' : ''}>›</button></div>`;
-}
 function suppliersView() {
   const a = ymd(spWeek), b = ymd(addDays(spWeek, 6));
   const by = group(entries.filter(x => x.date >= a && x.date <= b && x.client), 'client');
+  const names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + cmp(x), 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
-  const detail = spSel ? `<h2 style="margin-top:28px;font-size:1.2rem">${esc(spSel)}</h2>` + (by[spSel] ? sewerTree(by[spSel]) : '<p class="empty">Nothing from them this week.</p>') : '';
-  return `<h1 class="page-title">Suppliers</h1>${weekBar(spWeek, 'sp')}
-    <div class="mini-grid">${Object.keys(by).sort().map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', spSel === n)).join('')}</div>` +
-    (Object.keys(by).length ? '' : '<p class="empty">No suppliers logged this week.</p>') + `<div id="detail">${detail}</div>`;
+  const grand = names.reduce((t, n) => t + total(n), 0);
+  const cards = names.map(n => `<div class="scard ${spSel === n ? 'on' : ''}"><button class="scard-head" data-act="supplier" data-n="${esc(n)}" aria-expanded="${spSel === n}"><span><b>${esc(n)}</b><small>${pcs(n).toLocaleString()} pieces</small></span><span class="amt">${peso(total(n))}</span></button>${spSel === n ? `<div class="scard-body">${sewerTree(by[n])}</div>` : ''}</div>`).join('');
+  return `<h1 class="page-title">Suppliers</h1>${weekNav('sp', spWeek)}
+    <div class="tot-l">Total from suppliers</div><div class="tot-v">${peso(grand)}</div>` + cards +
+    (names.length ? '' : '<p class="empty">No suppliers logged this week.</p>');
 }
 
 // ---- Render + events ----
@@ -497,18 +615,27 @@ function renderTopbar() {
     <div class="profile-popover">
       <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? 'Owner' : 'Sewer'}</span></strong>
       ${isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
-      <button class="menu-btn" data-act="demo">${demoMode ? 'Exit demo mode' : 'Try demo data'}</button>
       <button class="menu-btn" data-act="logout">Log out</button>
     </div>
   </details>`;
+}
+function loaderHTML(label, small) {
+  return `<div class="tl${small ? ' sm' : ''}" aria-hidden="true">
+    <svg viewBox="0 7 48 35">
+      <line class="tl-l m0" x1="10" y1="11" x2="10.9" y2="38" pathLength="1"/>
+      <line class="tl-l m1" x1="19" y1="10" x2="18.3" y2="39.5" pathLength="1"/>
+      <line class="tl-l m2" x1="28" y1="12.5" x2="28.8" y2="37" pathLength="1"/>
+      <line class="tl-l m3" x1="37" y1="10" x2="36.8" y2="38.5" pathLength="1"/>
+      <line class="tl-l sl" x1="2.5" y1="37" x2="45.5" y2="12" pathLength="1"/>
+    </svg>
+    <span class="tl-word${label.length > 8 ? ' long' : ''}">${esc(label)}</span>
+  </div>`;
 }
 let busyText = '';
 function showBusy(text) {
   const b = $('busy');
   if (busyText !== (text || '') || !b.firstChild) { // same loader already drawn: keep it, so the animation doesn't restart
-    b.innerHTML = text
-      ? `<div class="busy-word" aria-hidden="true">${[...text].map((c, i) => `<span style="--i:${i}">${esc(c)}</span>`).join('')}</div>`
-      : '<span class="tally-loader" aria-hidden="true">T</span>';
+    b.innerHTML = loaderHTML(text || 'Tally');
     busyText = text || '';
   }
   b.setAttribute('aria-label', text || 'Loading Tally');
@@ -545,6 +672,7 @@ function render() {
   });
 }
 const $ = id => document.getElementById(id);
+showBusy('');
 const WIZARD_STEPS = [
   {key: 'client', label: 'Who is it from?', kind: 'supplier'},
   {key: 'item', label: 'What are you sewing?', kind: 'item'},
@@ -600,19 +728,6 @@ function wizardNext() {
 function wizardBack() {
   if (wizard.step > 0) { wizard.step--; wizard.other = false; renderWizard(); }
 }
-async function toggleDemo() {
-  if (demoMode) {
-    demoMode = false;
-    if (cloud) await refresh();
-    else { entries = loadEntries(); deriveLocalRates(); }
-    render();
-    return;
-  }
-  demoMode = true;
-  entries = demoEntries();
-  deriveLocalRates();
-  render();
-}
 function validateRequired(ids) {
   let first = null;
   ids.forEach(id => {
@@ -636,6 +751,7 @@ async function saveEntry() {
       client: v.client || 'Unknown', sewer: cloud ? me.name : '', qty: Number(v.qty)};
     const r = currentRate(e);
     e.price = r.price; e.pay = r.pay;
+    if (isLocked(e.date)) { $('err').textContent = 'That week is finalized. Ask the owner to reopen it, or pick a date in an open week.'; return; }
 
     if (!cloud) {
       e.id = Date.now(); entries.push(e);
@@ -719,9 +835,15 @@ document.addEventListener('click', ev => {
   else if (d.act === 'rate-add') { addRateFlow(); return; }
   else if (d.act === 'rate-edit') { openRateDialog(d.supplier, d.item, d.size); return; }
   else if (d.act === 'rate-cancel') { $('rate-dlg').close(); return; }
+  else if (d.act === 'fin-open') { openFinalizeSheet(); return; }
+  else if (d.act === 'reopen-open') { openReopenSheet(); return; }
+  else if (d.act === 'fin-close') { $('fin-dlg').close(); return; }
+  else if (d.act === 'fin-go') { runSheet('fin-go', 'Finalizing…', finalizeWeek); return; }
+  else if (d.act === 'reopen-go') { runSheet('reopen-go', 'Reopening…', reopenWeek); return; }
+  else if (d.act === 'slip') { downloadSlip(d); return; }
+  else if (d.act === 'sum') { downloadSummary(); return; }
   else if (d.act === 'rate-save') { saveRate(); return; }
   else if (d.act === 'catalog-add') { addCatalogValue(d.kind); return; }
-  else if (d.act === 'demo') { toggleDemo(); return; }
   else if (d.act === 'ask') pendingDel = d.id;
   else if (d.act === 'del') { removeEntry(d.id); return; }
   else if (d.act === 'auth-go') { authGo(); return; }
@@ -804,7 +926,7 @@ async function saveRate() {
   const start = ymd(weekStart(new Date()));
   const inCurrentWeek = e => e.date >= start && e.date <= ymd(addDays(parse(start), 6)) &&
     rateKey(e.client, e.item, e.size) === rateKey(r.supplier, r.item, r.size);
-  const affected = entries.filter(inCurrentWeek);
+  const affected = entries.filter(e => inCurrentWeek(e) && !isLocked(e.date));
   const previousEntries = affected.map(e => ({e, price:e.price, pay:e.pay}));
   affected.forEach(e => { e.price = price; e.pay = pay; });
   if (cloud) {
@@ -952,15 +1074,51 @@ function scanInvite() {
     console.error('Could not start QR scanner:', error);
   });
 }
+let joinCooldownTimer = null;
+function startJoinCooldown(seconds) {
+  clearInterval(joinCooldownTimer);
+  const btn = document.querySelector('[data-act="join-submit"]');
+  const status = $('onboarding-status');
+  let left = Math.ceil(seconds);
+  const tick = () => {
+    if (left <= 0) {
+      clearInterval(joinCooldownTimer);
+      if (btn) btn.disabled = false;
+      status.textContent = '';
+      return;
+    }
+    const m = Math.floor(left / 60), s = String(left % 60).padStart(2, '0');
+    status.textContent = `Too many wrong codes. Try again in ${m}:${s}.`;
+    if (btn) btn.disabled = true;
+    left--;
+  };
+  tick();
+  joinCooldownTimer = setInterval(tick, 1000);
+}
+
 async function joinOrganization() {
-  const token = $('join-token').value.replace(/\D/g, '');
-  if (!/^\d{6}$/.test(token)) { $('onboarding-status').textContent = 'Enter the six digits shown by the owner.'; return; }
-  $('onboarding-status').textContent = '';
+  const input = $('join-token'), status = $('onboarding-status');
+  const token = input.value.replace(/\D/g, '');
+  input.classList.remove('invalid');
+  if (!/^\d{6}$/.test(token)) {
+    input.classList.add('invalid');
+    status.textContent = 'Enter the six digits shown by the owner.';
+    return;
+  }
+  status.textContent = '';
   showBusy('Joining organization');
   const {data, error} = await sb.rpc('accept_organization_invite', {raw_token: token});
-  if (error) { hideBusy(); $('onboarding-status').textContent = error.message; return; }
-  if (!data || !data.id) { hideBusy(); $('onboarding-status').textContent = 'That code is invalid or expired.'; return; }
-  organization = data;
+  if (error) { hideBusy(); status.textContent = error.message; return; }
+  if (!data || !data.ok) {
+    hideBusy();
+    if (data && data.reason === 'locked') { startJoinCooldown(data.retry_after); return; }
+    input.classList.add('invalid');
+    input.focus();
+    if (data && data.retry_after) startJoinCooldown(data.retry_after);
+    else status.textContent = `That code is invalid or expired. ${data ? data.attempts_left : 0} tries left before a cooldown.`;
+    return;
+  }
+  organization = data.organization;
   pendingInvite = '';
   await enter();
 }
@@ -973,7 +1131,7 @@ function openInviteModal() {
   x.setAttribute('aria-label', 'Close');
   $('onboarding-title').textContent = 'Invite a sewer';
   $('onboarding-status').textContent = '';
-  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>Invite code</span><div class="invite-qr invite-wait"><span class="tally-loader" aria-hidden="true">T</span></div><strong>···</strong></div>';
+  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>Invite code</span><div class="invite-qr invite-wait">' + loaderHTML('Tally', true) + '</div><strong>···</strong></div>';
   $('onboarding').hidden = false;
 }
 function showInvite(token, expiresAt) {
@@ -1065,7 +1223,7 @@ function showConfirmation(email) {
 function showConfirmationLoading(email) {
   const panel = document.querySelector('.confirm-panel');
   panel.classList.add('loading');
-  $('confirm-icon').innerHTML = '<span class="tally-loader">T</span>';
+  $('confirm-icon').innerHTML = loaderHTML('Tally', true);
   $('confirm-title').textContent = 'Creating your account…';
   $('confirm-message').textContent = `Setting up ${email}. Just a moment.`;
   $('confirm-actions').hidden = true;
@@ -1085,8 +1243,7 @@ function enterAuthTestWorkspace() {
   $('auth').hidden = true;
   me = {id: 'auth-test-user', name: 'Test user', role: 'owner'};
   organization = {id: 'auth-test-org', name: 'Test organization'};
-  entries = demoEntries();
-  demoMode = true;
+  entries = [];
   deriveLocalRates();
   view = 'log';
   render();
@@ -1139,6 +1296,7 @@ async function refresh() {
   catalog = {item: [], color: [], size: [], supplier: []};
   (catalogRes.data || []).forEach(x => { if (catalog[x.kind]) catalog[x.kind].push(x.value); });
   enrichEntries();
+  await loadPeriods();
 }
 function entryFromRow(r) {
   return {id: r.id, organization_id:r.organization_id, created_by:r.created_by, sewer_id:r.sewer_id, date: r.date, item: r.item, color: r.color, size: r.size, qty: r.qty, client: r.client,
@@ -1156,7 +1314,6 @@ async function loadRealtimeProfile(sewerId) {
   return data.name;
 }
 async function applyRealtimeEntry(payload) {
-  if (demoMode) return;
   const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
   if (!row) return;
   const index = entries.findIndex(e => String(e.id) === String(row.id));
@@ -1207,6 +1364,7 @@ function subscribeRealtime() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'entries'}, applyRealtimeEntry)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_rates'}, applyRealtimeRate)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'tally_catalog_values'}, applyRealtimeCatalog)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'salary_periods'}, async () => { await loadPeriods(); render(); })
     .subscribe(status => {
       realtimeState = status;
       renderTopbar();
@@ -1317,13 +1475,14 @@ async function authGoogle() {
 async function logout() {
   await unsubscribeRealtime();
   await sb.auth.signOut();
-  me = null; entries = []; people = []; profileNames.clear(); organization = null; demoMode = false;
+  me = null; entries = []; people = []; profileNames.clear(); organization = null;
   setAuthMode('login'); showAuth(); renderTopbar();
 }
 async function removeEntry(id) {
   if (String(id).startsWith('tmp-')) return; // still saving, nothing to delete yet
   const removed = entries.find(e => e.id == id);
   if (!removed) return;
+  if (isLocked(removed.date)) { alert('This week is finalized. Reopen it first to delete entries.'); return; }
 
   entries = entries.filter(e => e.id != id);
   pendingDel = null;
