@@ -139,9 +139,11 @@ function weekNav(act, s) {
     <button class="wk-arr" data-act="${act}" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>`;
 }
 function monthNav() {
+  const current = new Date();
+  const isCurrentMonth = month.getFullYear() === current.getFullYear() && month.getMonth() === current.getMonth();
   return `<div class="weekbar"><button class="wk-arr" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
     <div class="wl">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</div>
-    <button class="wk-arr" data-act="mshift" data-d="1" aria-label="Next month">›</button></div>`;
+    <button class="wk-arr" data-act="mshift" data-d="1" aria-label="Next month" ${isCurrentMonth ? 'disabled' : ''}>›</button></div>`;
 }
 function catalogValues(kind) {
   const values = new Set(catalog[kind] || []);
