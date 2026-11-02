@@ -13,6 +13,13 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const cmp = e => e.qty * e.price;
 const k = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(n);
 
+async function sendMyEmail() {
+  const response = await fetch('/api/send-email', {method: 'POST'});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Email could not be sent.');
+  return data;
+}
+
 // ---- Data layer (later: replace these two functions with Supabase calls) ----
 const KEY = 'tally-entries-v2';
 const RATE_KEY = 'tally-rates-v1';

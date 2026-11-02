@@ -26,7 +26,23 @@ It uses a black-and-white minimalist design, works on phones and desktops, and f
 ## Run it
 
 1. Create a `config.js` next to `index.html` that defines `SUPABASE_URL` and `SUPABASE_ANON_KEY` (use the values from your Supabase project settings). Skip this to run in local-only mode.
-2. Open `index.html` in a browser, or serve the folder with any static server.
+2. In Supabase, open **Authentication → SMTP Settings** and configure Resend:
+   - Host: `smtp.resend.com`
+   - Port: `465` (SSL) or `587` (STARTTLS)
+   - Username: `resend`
+   - Password: a Resend API key with sending permission
+   - Sender email: a verified address such as `hello@tally-khenszn.site`
+   - Sender name: `Tally`
+3. To enable the separate Resend test-email endpoint, deploy with these server-side environment variables: `RESEND_API_KEY`, `EMAIL_FROM` (a verified Resend sender), and `EMAIL_TO` (the recipient). Never put `RESEND_API_KEY` in `config.js` or browser code.
+4. Open `index.html` in a browser, or serve the folder with any static server. The `/api/send-email` route requires a serverless host such as Vercel; it will not work from a plain static file server.
+
+The browser helper `sendMyEmail()` in `app.js` calls `/api/send-email` and returns the API response. Call it from a user action when the email should be sent.
+
+Supabase Auth continues to use the existing `sb.auth.signUp()` and `sb.auth.resend()` calls. Once SMTP Settings are saved, those confirmation and resend emails are delivered through Resend instead of Supabase's built-in email service and its low hourly limit.
+
+To test the separate Resend endpoint, deploy the app and run `sendMyEmail()` in the browser console. A successful message has the subject `[TALLY RESEND TEST] Email delivery check`. This does not test Supabase Auth SMTP; Supabase confirmation emails must be tested with a new signup or resend after saving Supabase SMTP Settings.
+
+For a branded confirmation email, copy [`supabase-confirm-email.html`](./supabase-confirm-email.html) into **Authentication → Email Templates → Confirm signup** in Supabase. Keep `{{ .ConfirmationURL }}` unchanged so the button can complete verification.
 
 ## Roadmap
 
