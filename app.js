@@ -468,6 +468,8 @@ function openReceipt(kind, n) {
     rows = entries.filter(x => x.date >= a && x.date <= b && x.client === n);
     total = rows.reduce((t, x) => t + cmp(x), 0);
     body = sewerTree(rows);
+    foot = periods[a] ? `<button class="fin-btn" data-act="sup-slip" data-n="${esc(n)}">${DLI}Download statement</button>`
+      : '<p class="muted fin-note">Not final yet. You can download the statement after the week is finalized.</p>';
   }
   const pieces = rows.reduce((t, x) => t + x.qty, 0);
   $('receipt-dlg').innerHTML = `<button class="onboarding-close" data-act="receipt-close" aria-label="Close">&times;</button>
@@ -586,6 +588,28 @@ async function downloadSlip(d) {
     sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: 'Finalized ' + finDate(p)});
   saveCanvas(c, `Tally-payslip-${st.sewer_name.replace(/\s+/g, '-')}-${key}.png`);
 }
+async function downloadSupplierSlip(d) {
+  const key = ymd(spWeek), p = periods[key];
+  if (!p) { alert('Finalize this week first to download a statement.'); return; }
+  const a = key, b = ymd(addDays(spWeek, 6));
+  const rows = entries.filter(x => x.date >= a && x.date <= b && x.client === d.n);
+  if (!rows.length) { alert('Nothing logged for this supplier this week.'); return; }
+  // One line per item/color/size/price, item first and bold like the sewer payslip. Sewer names and sewer pay stay out of it.
+  const by = {};
+  rows.forEach(e => {
+    const k = [e.item, e.color, e.size, e.price].join('|').toLowerCase();
+    const r = by[k] = by[k] || {item: e.item, color: e.color, size: e.size, price: e.price, qty: 0};
+    r.qty += e.qty;
+  });
+  const groups = [{s: d.n, rows: Object.values(by).sort((x, y) => textCmp(x.item, y.item) || textCmp(x.color, y.color) || sizeRank(x.size) - sizeRank(y.size)).map(r => ({
+    a: r.item,
+    b: [r.color, r.size].filter(v => v && v !== 'Any').join(', ') + (r.color === 'Any' && r.size === 'Any' ? '' : ' · ') + r.qty.toLocaleString() + ' × ' + peso(r.price),
+    c: peso(r.qty * r.price)}))}];
+  const total = rows.reduce((t, x) => t + cmp(x), 0), pieces = rows.reduce((t, x) => t + x.qty, 0);
+  const c = await drawSheet({title: 'Statement', name: d.n, sub: weekText(spWeek) + ', ' + addDays(spWeek, 6).getFullYear() + ' · ' + pieces.toLocaleString() + ' pieces',
+    sections: [{head: null, groups}], totalLabel: 'Total', total: peso(total), foot: 'Finalized ' + finDate(p)});
+  saveCanvas(c, `Tally-statement-${d.n.replace(/\s+/g, '-')}-${key}.png`);
+}
 async function downloadSummary() {
   const key = ymd(swWeek), p = periods[key];
   if (!p) return;
@@ -671,11 +695,11 @@ function tryDemoData() {
   demoBackup = {me, organization, entries, people, periods, rates, catalog, view, profileNames: new Map(profileNames)};
   const owner = {id: 'demo-owner', name: 'Demo Owner', role: 'owner', active: true};
   const sewers = [
-    {id: 'demo-sewer-1', name: 'Avery Santos', role: 'sewer', active: true},
-    {id: 'demo-sewer-2', name: 'Mika Reyes', role: 'sewer', active: true},
-    {id: 'demo-sewer-3', name: 'Jordan Cruz', role: 'sewer', active: true},
-    {id: 'demo-sewer-4', name: 'Casey Lim', role: 'sewer', active: true},
-    {id: 'demo-sewer-5', name: 'Riley Garcia', role: 'sewer', active: true}
+    {id: 'demo-sewer-1', name: 'Unot', role: 'sewer', active: true},
+    {id: 'demo-sewer-2', name: 'Lawrence', role: 'sewer', active: true},
+    {id: 'demo-sewer-3', name: 'Tarik', role: 'sewer', active: true},
+    {id: 'demo-sewer-4', name: 'Princess', role: 'sewer', active: true},
+    {id: 'demo-sewer-5', name: 'Ana', role: 'sewer', active: true}
   ];
   demoMode = true;
   me = owner;
@@ -684,7 +708,7 @@ function tryDemoData() {
   periods = {};
   profileNames.clear();
   people.forEach(person => profileNames.set(person.id, person.name));
-  const suppliers = ['Mia Fabrics', 'North Thread Co.', 'Golden Loom', 'Sew Good Supply', 'The Button House'];
+  const suppliers = ['Marvin', 'Jenny', 'Ronald', 'John', 'Grace'];
   const items = ['Dress', 'Blouse', 'Pants', 'Skirt', 'Uniform', 'Curtains', 'Pillowcase'];
   const colors = ['Black', 'Navy', 'Cream', 'Sage', 'Rose', 'Denim', 'Mustard'];
   const sizes = ['XS', 'Small', 'Medium', 'Large', 'XL', 'XXL'];
@@ -694,7 +718,7 @@ function tryDemoData() {
     const day = addDays(start, (i * 11) % 91);
     const supplier = suppliers[i % suppliers.length];
     const item = items[(i * 3) % items.length];
-    const sewer = sewers[i % sewers.length];
+    const sewer = sewers[(i + Math.floor(i / sewers.length)) % sewers.length]; // shifts each round so every supplier works with several sewers
     demo.push({
       id: `demo-${i}`, demo: true, date: ymd(day), item,
       color: colors[(i * 5) % colors.length], size: sizes[(i * 7) % sizes.length],
@@ -949,6 +973,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'fin-go') { runSheet('fin-go', 'Finalizing…', finalizeWeek); return; }
   else if (d.act === 'reopen-go') { runSheet('reopen-go', 'Reopening…', reopenWeek); return; }
   else if (d.act === 'slip') { downloadSlip(d); return; }
+  else if (d.act === 'sup-slip') { downloadSupplierSlip(d); return; }
   else if (d.act === 'sum') { downloadSummary(); return; }
   else if (d.act === 'rate-save') { saveRate(); return; }
   else if (d.act === 'catalog-add') { addCatalogValue(d.kind); return; }
