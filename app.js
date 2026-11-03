@@ -4,12 +4,15 @@ const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.get
 const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const addDays = (d, n) => { const t = new Date(d); t.setDate(t.getDate() + n); return t; };
 const weekStart = d => { const t = parse(ymd(d)); return addDays(t, -((t.getDay() + 6) % 7)); }; // Monday
-const short = d => d.toLocaleDateString('en-PH', {month:'short', day:'numeric'});
+const short = d => d.toLocaleDateString(loc(), {month:'short', day:'numeric'});
 const peso = n => {
   n = Math.round(n * 100) / 100;
   return '₱' + (Number.isInteger(n) ? n.toLocaleString('en-PH') : n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
 };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tr = k => I18N.t(k);
+const loc = () => I18N.lang() === 'fil' ? 'fil-PH' : 'en-PH';
+const DOW = () => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(d => tr('dow.' + d));
 const cmp = e => e.qty * e.price;
 const k = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(n);
 
@@ -121,7 +124,7 @@ async function finalizeWeek(ws) {
   const key = ymd(ws), statements = buildStatements(ws);
   if (remote()) {
     const {error} = await sb.rpc('finalize_week', {target_organization: organization.id, target_week: key, statements});
-    if (error) { alert('Could not finalize this week: ' + error.message + '\n(If it mentions a missing function, run supabase-finalize.sql in Supabase first.)'); return false; }
+    if (error) { alert(tr('err.finalize') + error.message + '\n(If it mentions a missing function, run supabase-finalize.sql in Supabase first.)'); return false; }
     await loadPeriods();
   } else { periods[key] = {finalized_at: new Date().toISOString(), statements}; if (!demoMode) savePeriods(); }
   return true;
@@ -130,7 +133,7 @@ async function reopenWeek(ws) {
   const key = ymd(ws);
   if (remote()) {
     const {error} = await sb.rpc('reopen_week', {target_organization: organization.id, target_week: key});
-    if (error) { alert('Could not reopen this week: ' + error.message); return false; }
+    if (error) { alert(tr('err.reopen') + error.message); return false; }
     await loadPeriods();
   } else { delete periods[key]; if (!demoMode) savePeriods(); }
   return true;
@@ -140,16 +143,16 @@ const DLI = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke=
 const weekText = ws => short(ws) + ' – ' + short(addDays(ws, 6));
 function weekNav(act, s) {
   const cur = s >= weekStart(new Date()), p = periods[ymd(s)];
-  const pill = p ? `<span class="wk-pill on">${LOCKI}Finalized · ${short(new Date(p.finalized_at))}</span>` : `<span class="wk-pill">${cur ? 'In progress' : 'Not finalized'}</span>`;
-  return `<div class="weekbar"><button class="wk-arr" data-act="${act}" data-d="-1" aria-label="Previous week">‹</button>
+  const pill = p ? `<span class="wk-pill on">${LOCKI}Finalized · ${short(new Date(p.finalized_at))}</span>` : `<span class="wk-pill">${cur ? tr('wk.inProgress') : tr('wk.notFinal')}</span>`;
+  return `<div class="weekbar"><button class="wk-arr" data-act="${act}" data-d="-1" aria-label="${tr('aria.prev')}">‹</button>
     <div class="wl">${weekText(s)}<br>${pill}</div>
-    <button class="wk-arr" data-act="${act}" data-d="1" aria-label="Next week" ${cur ? 'disabled' : ''}>›</button></div>`;
+    <button class="wk-arr" data-act="${act}" data-d="1" aria-label="${tr('aria.next')}" ${cur ? 'disabled' : ''}>›</button></div>`;
 }
 function monthNav() {
   const current = new Date();
   const isCurrentMonth = month.getFullYear() === current.getFullYear() && month.getMonth() === current.getMonth();
   return `<div class="weekbar"><button class="wk-arr" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
-    <div class="wl">${month.toLocaleDateString('en-PH', {month:'long', year:'numeric'})}</div>
+    <div class="wl">${month.toLocaleDateString(loc(), {month:'long', year:'numeric'})}</div>
     <button class="wk-arr" data-act="mshift" data-d="1" aria-label="Next month" ${isCurrentMonth ? 'disabled' : ''}>›</button></div>`;
 }
 function catalogValues(kind) {
@@ -251,9 +254,9 @@ function initMeshBackground() {
 // ---- Log ----
 function dayLabel(s) {
   const t = ymd(new Date());
-  if (s === t) return 'Today';
-  if (s === ymd(addDays(new Date(), -1))) return 'Yesterday';
-  return parse(s).toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'});
+  if (s === t) return tr('wiz.today');
+  if (s === ymd(addDays(new Date(), -1))) return tr('day.yesterday');
+  return parse(s).toLocaleDateString(loc(), {weekday:'short', month:'short', day:'numeric'});
 }
 function entryPanel(e, del, noClient) {
   const r = currentRate(e);
@@ -263,37 +266,37 @@ function entryPanel(e, del, noClient) {
   return `<div class="panel ${w ? 'warn' : ''}">
     <div class="main"><div class="title"><strong>${esc(noClient ? e.item : e.client)}</strong>${e.sewer ? `<span class="tag">by ${esc(e.sewer)}</span>` : ''}</div>
       <div class="muted">${noClient ? '' : esc(e.item) + ', '}${esc(e.color)}, ${esc(e.size)}</div></div>
-    <div class="r"><strong>${missing ? 'Rate needed' : peso(e.qty * r.price)}</strong><div class="muted">${e.qty} × ${missing ? '—' : peso(r.price)}</div></div>
-    ${del ? `<button class="trash" data-act="ask" data-id="${e.id}" aria-label="Delete this entry">${TRASH}</button>` : ''}
-    ${w ? `<div class="confirm" role="alert"><p>${WARN}<span>Delete this entry? This can't be undone.</span></p>
-      <button class="btn" data-act="keep">Keep it</button>
-      <button class="danger" data-act="del" data-id="${e.id}">Delete entry</button></div>` : ''}
+    <div class="r"><strong>${missing ? tr('rate.needed') : peso(e.qty * r.price)}</strong><div class="muted">${e.qty} × ${missing ? '—' : peso(r.price)}</div></div>
+    ${del ? `<button class="trash" data-act="ask" data-id="${e.id}" aria-label="${tr('aria.delete')}">${TRASH}</button>` : ''}
+    ${w ? `<div class="confirm" role="alert"><p>${WARN}<span>${tr('entry.deleteAsk')}</span></p>
+      <button class="btn" data-act="keep">${tr('entry.keep')}</button>
+      <button class="danger" data-act="del" data-id="${e.id}">${tr('entry.delete')}</button></div>` : ''}
   </div>`;
 }
 function weekLabel(ws) {
   const diff = Math.round((weekStart(new Date()) - ws) / 604800000);
-  if (diff === 0) return 'This week';
-  if (diff === 1) return 'Last week';
-  if (diff === -1) return 'Next week';
-  return short(ws) + ' to ' + short(addDays(ws, 6));
+  if (diff === 0) return tr('wk.this');
+  if (diff === 1) return tr('wk.last');
+  if (diff === -1) return tr('wk.next');
+  return short(ws) + ' ' + tr('word.to') + ' ' + short(addDays(ws, 6));
 }
 function logView() {
   const s = logWeek, a = ymd(s), b = ymd(addDays(s, 6));
   const list = entries.filter(e => e.date >= a && e.date <= b).sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
-  let out = `<h1 class="page-title">Log</h1>${weekNav('lw', s)}` +
-    (periods[a] ? '<p class="muted fin-note" style="text-align:left;margin:0 0 4px">This week is finalized, so its entries are locked.</p>' : ''), last = '';
+  let out = `<h1 class="page-title">${tr('nav.log')}</h1>${weekNav('lw', s)}` +
+    (periods[a] ? '<p class="muted fin-note" style="text-align:left;margin:0 0 4px">' + tr('log.locked') + '</p>' : ''), last = '';
   list.forEach(e => {
     if (e.date !== last) { out += `<div class="day">${dayLabel(e.date)}</div>`; last = e.date; }
     out += entryPanel(e, canDelete());
   });
-  if (!list.length) out += '<p class="empty">Nothing logged this week.</p>';
-  return out + '<button class="fab" data-act="add">Add entry</button>';
+  if (!list.length) out += '<p class="empty">' + tr('log.none') + '</p>';
+  return out + '<button class="fab" data-act="add">' + tr('log.add') + '</button>';
 }
 
 function myLogView() {
   const previous = entries;
   entries = entries.filter(e => e.sewer_id === me.id || e.created_by === me.id);
-  const output = logView().replace('<h1 class="page-title">Log</h1>', '<h1 class="page-title">My logs</h1>');
+  const output = logView().replace('<h1 class="page-title">' + tr('nav.log') + '</h1>', '<h1 class="page-title">' + tr('nav.myLogs') + '</h1>');
   entries = previous;
   return output;
 }
@@ -308,15 +311,15 @@ function mySalaryView() {
     const rows = bySupplier[supplier].slice().sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
     return `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong><span>${peso(rows.reduce((sum, e) => sum + e.qty * e.pay, 0))}</span></div><div class="kids">` +
       rows.map(e => `<div class="slog"><div><div>${esc(e.item)}</div><div class="muted">${esc(e.color)}, ${esc(e.size)}, ${dayLabel(e.date)}</div></div>
-        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') + '</div></div>';
+        <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} ${tr('unit.pcs')} × ${peso(e.pay)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
   const p = periods[a], st = p && (p.statements || []).find(x => x.sewer_id === me.id);
   const foot = st ? `<button class="fin-btn" data-act="slip" data-self="1">${DLI}Download payslip</button>`
-    : p ? '' : '<p class="muted fin-note">In progress, not final. You can download your payslip once the owner finalizes the week.</p>';
+    : p ? '' : '<p class="muted fin-note">' + tr('fin.inProgressMine') + '</p>';
   const bar = foot ? '<div class="fin-bar">' + foot + '</div>' : '';
-  return `<h1 class="page-title">My salary</h1>${weekNav('sw', s)}
-    <div class="tot-l">Your pay</div><div class="tot-v">${peso(total)}</div><p class="muted" style="margin:0">${pieces.toLocaleString()} pieces</p>
-    ${detail || '<p class="empty">No logs this week.</p>'}${bar}`;
+  return `<h1 class="page-title">${tr('view.mySalary')}</h1>${weekNav('sw', s)}
+    <div class="tot-l">${tr('tot.yourPay')}</div><div class="tot-v">${peso(total)}</div><p class="muted" style="margin:0">${pieces.toLocaleString()} ${tr('unit.pieces')}</p>
+    ${detail || '<p class="empty">' + tr('log.noneMine') + '</p>'}${bar}`;
 }
 
 function myFinanceView() {
@@ -324,7 +327,7 @@ function myFinanceView() {
   const byDay = {};
   list.forEach(e => byDay[e.date] = (byDay[e.date] || 0) + e.qty * e.pay);
   const y = month.getFullYear(), m = month.getMonth(), days = new Date(y, m + 1, 0).getDate();
-  let cells = '<div class="cal-label">Wk</div>' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  let cells = '<div class="cal-label">Wk</div>' + DOW().map(d => `<div class="dow">${d}</div>`).join('');
   const first = new Date(y, m, 1), last = new Date(y, m, days);
   let monthTotal = 0;
   for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
@@ -339,27 +342,27 @@ function myFinanceView() {
     }
   }
   const detail = myFinanceDetail(list);
-  return `<h1 class="page-title">My finance</h1>${monthNav()}
-    <div class="stats"><div class="stat"><span class="muted">Your earnings</span><b>${peso(monthTotal)}</b></div></div>
+  return `<h1 class="page-title">${tr('view.myFinance')}</h1>${monthNav()}
+    <div class="stats"><div class="stat"><span class="muted">${tr('fin.yourEarnings')}</span><b>${peso(monthTotal)}</b></div></div>
     <div class="cal" style="margin-top:20px">${cells}</div><div id="detail">${detail}</div>`;
 }
 
 function myFinanceDetail(list) {
-  if (!sel) return '<p class="empty">Tap a week or day to see your earnings and logs.</p>';
+  if (!sel) return '<p class="empty">' + tr('fin.tapMine') + '</p>';
   const week = sel.t === 'week', start = parse(sel.d), end = ymd(addDays(start, 6));
   const rows = week ? list.filter(e => e.date >= sel.d && e.date <= end) : list.filter(e => e.date === sel.d);
   const total = rows.reduce((sum, e) => sum + e.qty * e.pay, 0);
   const pieces = rows.reduce((sum, e) => sum + e.qty, 0);
   const title = week ? `Week of ${short(start)} to ${short(addDays(start, 6))}` :
-    start.toLocaleDateString('en-PH', {weekday:'long', month:'long', day:'numeric'});
+    start.toLocaleDateString(loc(), {weekday:'long', month:'long', day:'numeric'});
   const grouped = group(rows, 'client');
   const logs = Object.keys(grouped).sort().map(supplier => `<div class="grp"><div class="sup-head"><strong>${esc(supplier)}</strong></div><div class="kids">` +
     grouped[supplier].slice().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).map(e =>
       `<div class="slog"><div><div>${esc(e.item)}</div><div class="muted">${esc(e.color)}, ${esc(e.size)}, ${dayLabel(e.date)}</div></div>
-      <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} pcs × ${peso(e.pay)}</div></div></div>`).join('') +
+      <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} ${tr('unit.pcs')} × ${peso(e.pay)}</div></div></div>`).join('') +
     '</div></div>').join('');
   return `<h2 style="margin-top:32px;font-size:1.2rem">${title}</h2>
-    <div class="stats"><div class="stat"><span class="muted">Earnings</span><b>${peso(total)}</b></div><div class="stat"><span class="muted">Pieces</span><b>${pieces.toLocaleString()}</b></div></div>
+    <div class="stats"><div class="stat"><span class="muted">${tr('fin.earnings')}</span><b>${peso(total)}</b></div><div class="stat"><span class="muted">${tr('unit.piecesCap')}</span><b>${pieces.toLocaleString()}</b></div></div>
     ${logs || `<p class="empty">Nothing was logged ${week ? 'this week' : 'this day'}.</p>`}`;
 }
 
@@ -374,8 +377,8 @@ function sewerBlock(list) {
   const names = Object.keys(pay).sort();
   return {
     paid: names.reduce((s, n) => s + pay[n].amt, 0),
-    html: names.map(n => `<div class="panel"><div class="main"><strong>${esc(n)}</strong><div class="muted">${pay[n].qty.toLocaleString()} pieces</div></div>
-      <div class="r"><strong>${peso(pay[n].amt)}</strong><div class="muted">salary</div></div></div>`).join('') || '<p class="muted">No sewers recorded.</p>'
+    html: names.map(n => `<div class="panel"><div class="main"><strong>${esc(n)}</strong><div class="muted">${pay[n].qty.toLocaleString()} ${tr('unit.pieces')}</div></div>
+      <div class="r"><strong>${peso(pay[n].amt)}</strong><div class="muted">${tr('sal.lower')}</div></div></div>`).join('') || '<p class="muted">' + tr('sal.noSewers') + '</p>'
   };
 }
 function stats(income, pay) {
@@ -387,10 +390,10 @@ function supplierTree(list, inner) {
   return Object.keys(by).sort().map(c => `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(by[c].reduce((t, x) => t + cmp(x), 0))}</span></div><div class="kids">${inner(by[c])}</div></div>`).join('');
 }
 function detailView() {
-  if (!sel) return '<p class="empty">Tap a week on the left, or any day, to see what was sewn.</p>';
+  if (!sel) return '<p class="empty">' + tr('fin.tapWeek') + '</p>';
   const week = sel.t === 'week', s = parse(sel.d), end = ymd(addDays(s, 6));
   const list = week ? entries.filter(e => e.date >= sel.d && e.date <= end) : entries.filter(e => e.date === sel.d);
-  const title = week ? `Week of ${short(s)} to ${short(addDays(s, 6))}` : s.toLocaleDateString('en-PH', {weekday:'long', month:'long', day:'numeric'});
+  const title = week ? `${tr('fin.weekOf')} ${short(s)} ${tr('word.to')} ${short(addDays(s, 6))}` : s.toLocaleDateString(loc(), {weekday:'long', month:'long', day:'numeric'});
   const income = list.reduce((a, e) => a + cmp(e), 0), sw = sewerBlock(list);
   return `<h2 style="margin-top:32px;font-size:1.2rem">${title}</h2>${stats(income, sw.paid)}` +
     (supplierTree(list, week ? sewerTree : l => l.map(e => entryPanel(e, false, true)).join(''))
@@ -403,7 +406,7 @@ function financeView() {
   const payDay = {};
   entries.forEach(e => payDay[e.date] = (payDay[e.date] || 0) + e.qty * e.pay);
   const weekTotal = ws => { let t = 0; for (let i = 0; i < 7; i++) t += byDay[ymd(addDays(ws, i))] || 0; return t; };
-  let cells = '<div class="cal-label">Wk</div>' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  let cells = '<div class="cal-label">Wk</div>' + DOW().map(d => `<div class="dow">${d}</div>`).join('');
   let monthTotal = 0, monthPay = 0;
   const first = new Date(y, m, 1), last = new Date(y, m, days);
   for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
@@ -416,7 +419,7 @@ function financeView() {
       cells += `<button class="cell ${v ? 'has' : ''} ${wsel ? 'wsel' : ''} ${sel && sel.t === 'day' && sel.d === key ? 'dsel' : ''}" data-act="day" data-d="${key}"><span>${dt.getDate()}</span><b>${v ? k(v) : ''}</b></button>`;
     }
   }
-  return `<h1 class="page-title">Finance</h1>
+  return `<h1 class="page-title">${tr('nav.finance')}</h1>
     ${monthNav()}
     ${stats(monthTotal, monthPay)}
     <div class="cal" style="margin-top:20px">${cells}</div>
@@ -441,12 +444,12 @@ function sewersView() {
   const total = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
   const grand = names.reduce((t, n) => t + total(n), 0);
   let bar = '';
-  if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">Reopen week</button><p class="muted fin-note">Entries for this week are locked.</p>`;
-  else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">Finalize week</button>`;
-  return `<h1 class="page-title">Salary</h1>${weekNav('sw', s)}
-    <div class="tot-l">Total sewer pay</div><div class="tot-v">${peso(grand)}</div>
-    <div class="mini-grid">${names.map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
-    (names.length ? '' : '<p class="empty">No sewers were logged this week.</p>') + (bar ? `<div class="fin-bar">${bar}</div>` : '');
+  if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">${tr('fin.reopenWeek')}</button><p class="muted fin-note">${tr('fin.entriesLocked')}</p>`;
+  else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">${tr('fin.finalizeWeek')}</button>`;
+  return `<h1 class="page-title">${tr('nav.salary')}</h1>${weekNav('sw', s)}
+    <div class="tot-l">${tr('tot.sewerPay')}</div><div class="tot-v">${peso(grand)}</div>
+    <div class="mini-grid">${names.map(n => miniCard('sewer', n, peso(total(n)), pcs(n).toLocaleString() + ' ' + tr('unit.pieces'), false)).join('')}</div>` +
+    (names.length ? '' : '<p class="empty">' + tr('sal.noneWeek') + '</p>') + (bar ? `<div class="fin-bar">${bar}</div>` : '');
 }
 // The receipt: tap a sewer or supplier card to see everything for that week in a scrollable popup
 function openReceipt(kind, n) {
@@ -460,22 +463,22 @@ function openReceipt(kind, n) {
       const l = sup[c].sort((x, y) => y.date.localeCompare(x.date) || y.id - x.id);
       return `<div class="grp"><div class="sup-head"><strong>${esc(c)}</strong><span>${peso(l.reduce((t, x) => t + x.qty * x.pay, 0))}</span></div><div class="kids">` +
         l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
-          <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} pcs × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
+          <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} ${tr('unit.pcs')} × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
     }).join('');
     foot = periods[a] ? `<button class="fin-btn" data-act="slip" data-n="${esc(n)}">${DLI}Download payslip</button>`
-      : '<p class="muted fin-note">Not final yet. You can download the payslip after the week is finalized.</p>';
+      : '<p class="muted fin-note">' + tr('fin.notFinalSlip') + '</p>';
   } else {
     rows = entries.filter(x => x.date >= a && x.date <= b && x.client === n);
     total = rows.reduce((t, x) => t + cmp(x), 0);
     body = sewerTree(rows);
     foot = periods[a] ? `<button class="fin-btn" data-act="sup-slip" data-n="${esc(n)}">${DLI}Download statement</button>`
-      : '<p class="muted fin-note">Not final yet. You can download the statement after the week is finalized.</p>';
+      : '<p class="muted fin-note">' + tr('fin.notFinalStmt') + '</p>';
   }
   const pieces = rows.reduce((t, x) => t + x.qty, 0);
-  $('receipt-dlg').innerHTML = `<button class="onboarding-close" data-act="receipt-close" aria-label="Close">&times;</button>
-    <div class="rc-head"><div class="rc-brand">Tally</div><div class="rc-name">${esc(n)}</div><div class="muted">${weekText(ws)} · ${pieces.toLocaleString()} pieces</div></div>
-    <div class="rc-body">${body || '<p class="empty">Nothing this week.</p>'}</div>
-    <div class="rc-foot"><div class="rc-total"><span>${kind === 'sewer' ? 'Total pay' : 'Total'}</span><span>${peso(total)}</span></div>${foot}</div>`;
+  $('receipt-dlg').innerHTML = `<button class="onboarding-close" data-act="receipt-close" aria-label="${tr('aria.close')}">&times;</button>
+    <div class="rc-head"><div class="rc-brand">Tally</div><div class="rc-name">${esc(n)}</div><div class="muted">${weekText(ws)} · ${pieces.toLocaleString()} ${tr('unit.pieces')}</div></div>
+    <div class="rc-body">${body || '<p class="empty">' + tr('fin.nothingWeek') + '</p>'}</div>
+    <div class="rc-foot"><div class="rc-total"><span>${kind === 'sewer' ? tr('fin.totalPay') : tr('fin.total')}</span><span>${peso(total)}</span></div>${foot}</div>`;
   $('receipt-dlg').showModal();
 }
 function openFinalizeSheet() {
@@ -483,18 +486,18 @@ function openFinalizeSheet() {
   const list = entries.filter(x => x.date >= a && x.date <= b && x.sewer), by = group(list, 'sewer');
   const names = Object.keys(by).sort(), tot = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0);
   const missing = list.filter(e => !rates.some(x => rateKey(x.supplier, x.item, x.size) === rateKey(e.client, e.item, e.size))).length;
-  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="Close">&times;</button><div class="fin-grab"></div><h2>Finalize ${weekText(s)}?</h2><p class="muted">Pay for this week, per sewer</p>` +
+  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="${tr('aria.close')}">&times;</button><div class="fin-grab"></div><h2>${tr('fin.finalizeTitle').replace('{week}', weekText(s))}</h2><p class="muted">${tr('fin.payPer')}</p>` +
     `<div class="fin-scroll">${names.map(n => `<div class="fin-row"><span>${esc(n)}</span><span>${peso(tot(n))}</span></div>`).join('')}</div>` +
-    `<div class="fin-row fin-total"><span>Total</span><span>${peso(names.reduce((t, n) => t + tot(n), 0))}</span></div>` +
-    (missing ? `<div class="fin-warn"><strong>${missing} ${missing === 1 ? 'entry has' : 'entries have'} no rate yet.</strong> Set ${missing === 1 ? 'it' : 'them'} in Setup first so nobody is underpaid.</div>` : '') +
-    `<p class="muted">After this, entries for this week can’t be added or deleted, and each sewer gets a saved payslip. You can reopen the week later.</p>
-    <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="fin-go">Finalize</button></div>`;
+    `<div class="fin-row fin-total"><span>${tr('fin.total')}</span><span>${peso(names.reduce((t, n) => t + tot(n), 0))}</span></div>` +
+    (missing ? `<div class="fin-warn">${tr(missing === 1 ? 'fin.missing1' : 'fin.missingN').replace('{n}', missing)}</div>` : '') +
+    `<p class="muted">${tr('fin.afterNote')}</p>
+    <div class="fin-actions"><button class="btn" data-act="fin-close">${tr('common.cancel')}</button><button class="primary" data-act="fin-go">${tr('fin.finalize')}</button></div>`;
   $('fin-dlg').showModal();
 }
 function openReopenSheet() {
-  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="Close">&times;</button><div class="fin-grab"></div><h2>Reopen ${weekText(swWeek)}?</h2>
-    <p class="muted">The week unlocks and its saved payslips are removed. Finalize it again when you’re done.</p>
-    <div class="fin-actions"><button class="btn" data-act="fin-close">Cancel</button><button class="primary" data-act="reopen-go">Reopen</button></div>`;
+  $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="${tr('aria.close')}">&times;</button><div class="fin-grab"></div><h2>${tr('fin.reopenTitle').replace('{week}', weekText(swWeek))}</h2>
+    <p class="muted">${tr('fin.reopenNote')}</p>
+    <div class="fin-actions"><button class="btn" data-act="fin-close">${tr('common.cancel')}</button><button class="primary" data-act="reopen-go">${tr('fin.reopen')}</button></div>`;
   $('fin-dlg').showModal();
 }
 async function runSheet(act, label, fn) {
@@ -507,7 +510,7 @@ async function runSheet(act, label, fn) {
 function statementSection(st, withHead) {
   const by = {};
   (st.lines || []).forEach(l => (by[l.supplier] = by[l.supplier] || []).push(l));
-  return {head: withHead ? {name: st.sewer_name, total: peso(Number(st.total)), sub: Number(st.pieces).toLocaleString() + ' pieces'} : null,
+  return {head: withHead ? {name: st.sewer_name, total: peso(Number(st.total)), sub: Number(st.pieces).toLocaleString() + ' ' + tr('unit.pieces')} : null,
     groups: Object.keys(by).sort(textCmp).map(sup => ({s: sup, rows: by[sup].map(l => ({a: l.item,
       b: [l.color, l.size].filter(v => v && v !== 'Any').join(', ') + (l.color === 'Any' && l.size === 'Any' ? '' : ' · ') + Number(l.qty).toLocaleString() + ' × ' + peso(Number(l.pay)),
       c: peso(Number(l.qty) * Number(l.pay))}))}))};
@@ -579,21 +582,21 @@ function saveCanvas(c, name) {
     setTimeout(() => URL.revokeObjectURL(u), 4000);
   }, 'image/png');
 }
-const finDate = p => new Date(p.finalized_at).toLocaleDateString('en-PH', {month:'short', day:'numeric', year:'numeric'});
+const finDate = p => new Date(p.finalized_at).toLocaleDateString(loc(), {month:'short', day:'numeric', year:'numeric'});
 async function downloadSlip(d) {
   const key = ymd(swWeek), p = periods[key];
   const st = p && (p.statements || []).find(x => d.self ? x.sewer_id === me.id : x.sewer_name === d.n);
-  if (!st) { alert('There is no saved payslip for this person.'); return; }
+  if (!st) { alert(tr('err.noSlip')); return; }
   const c = await drawSheet({title: 'Payslip', name: st.sewer_name, sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
     sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: 'Finalized ' + finDate(p)});
   saveCanvas(c, `Tally-payslip-${st.sewer_name.replace(/\s+/g, '-')}-${key}.png`);
 }
 async function downloadSupplierSlip(d) {
   const key = ymd(spWeek), p = periods[key];
-  if (!p) { alert('Finalize this week first to download a statement.'); return; }
+  if (!p) { alert(tr('err.noStmt')); return; }
   const a = key, b = ymd(addDays(spWeek, 6));
   const rows = entries.filter(x => x.date >= a && x.date <= b && x.client === d.n);
-  if (!rows.length) { alert('Nothing logged for this supplier this week.'); return; }
+  if (!rows.length) { alert(tr('err.noSupRows')); return; }
   // One line per item/color/size/price, item first and bold like the sewer payslip. Sewer names and sewer pay stay out of it.
   const by = {};
   rows.forEach(e => {
@@ -606,7 +609,7 @@ async function downloadSupplierSlip(d) {
     b: [r.color, r.size].filter(v => v && v !== 'Any').join(', ') + (r.color === 'Any' && r.size === 'Any' ? '' : ' · ') + r.qty.toLocaleString() + ' × ' + peso(r.price),
     c: peso(r.qty * r.price)}))}];
   const total = rows.reduce((t, x) => t + cmp(x), 0), pieces = rows.reduce((t, x) => t + x.qty, 0);
-  const c = await drawSheet({title: 'Statement', name: d.n, sub: weekText(spWeek) + ', ' + addDays(spWeek, 6).getFullYear() + ' · ' + pieces.toLocaleString() + ' pieces',
+  const c = await drawSheet({title: 'Statement', name: d.n, sub: weekText(spWeek) + ', ' + addDays(spWeek, 6).getFullYear() + ' · ' + pieces.toLocaleString() + ' ' + tr('unit.pieces'),
     sections: [{head: null, groups}], totalLabel: 'Total', total: peso(total), foot: 'Finalized ' + finDate(p)});
   saveCanvas(c, `Tally-statement-${d.n.replace(/\s+/g, '-')}-${key}.png`);
 }
@@ -645,10 +648,10 @@ function suppliersView() {
   const names = Object.keys(by).sort();
   const total = n => by[n].reduce((t, x) => t + cmp(x), 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
   const grand = names.reduce((t, n) => t + total(n), 0);
-  return `<h1 class="page-title">Suppliers</h1>${weekNav('sp', spWeek)}
-    <div class="tot-l">Total from suppliers</div><div class="tot-v">${peso(grand)}</div>
-    <div class="mini-grid">${names.map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' pieces', false)).join('')}</div>` +
-    (names.length ? '' : '<p class="empty">No suppliers logged this week.</p>');
+  return `<h1 class="page-title">${tr('nav.suppliers')}</h1>${weekNav('sp', spWeek)}
+    <div class="tot-l">${tr('tot.fromSuppliers')}</div><div class="tot-v">${peso(grand)}</div>
+    <div class="mini-grid">${names.map(n => miniCard('supplier', n, peso(total(n)), pcs(n).toLocaleString() + ' ' + tr('unit.pieces'), false)).join('')}</div>` +
+    (names.length ? '' : '<p class="empty">' + tr('sup.none') + '</p>');
 }
 
 // ---- Render + events ----
@@ -661,32 +664,74 @@ function setupView() {
   });
   const missing = Object.values(combos).filter(c => !rates.some(r => rateKey(r.supplier, r.item, r.size) === rateKey(c.supplier, c.item, c.size)));
   const rateRows = rates.slice().sort((a, b) => rateKey(a.supplier, a.item, a.size).localeCompare(rateKey(b.supplier, b.item, b.size)));
-  const cards = (kind, label) => `<section class="setup-section"><div class="bar"><h2>${label}</h2><button class="btn" data-act="catalog-add" data-kind="${kind}">Add</button></div>
-    <div class="option-list">${catalogValues(kind).map(v => `<span class="option-chip">${esc(v)}</span>`).join('') || '<span class="muted">No values yet.</span>'}</div></section>`;
-  return `<h1 class="page-title">Setup</h1>
-    <p class="muted">Manage rates and the options used when logging work.</p>
-    <section class="setup-section"><div class="bar"><h2>Needs attention <span class="tag">${missing.length}</span></h2></div>
-      ${missing.length ? missing.map(c => `<div class="rate-card missing"><div><strong>${esc(c.supplier)}</strong><div class="muted">${esc(c.item)} · ${esc(c.size)}</div></div><button class="primary" data-act="rate-edit" data-supplier="${esc(c.supplier)}" data-item="${esc(c.item)}" data-size="${esc(c.size)}">Set rate</button></div>`).join('') : '<p class="empty">Everything used in your entries has a price and sewer pay.</p>'}
+  const cards = (kind, label) => `<section class="setup-section"><div class="bar"><h2>${label}</h2><button class="btn" data-act="catalog-add" data-kind="${kind}">${tr('common.add')}</button></div>
+    <div class="option-list">${catalogValues(kind).map(v => `<span class="option-chip">${esc(v)}</span>`).join('') || '<span class="muted">' + tr('setup.noValues') + '</span>'}</div></section>`;
+  return `<h1 class="page-title">${tr('nav.setup')}</h1>
+    <p class="muted">${tr('setup.manage')}</p>
+    <section class="setup-section"><div class="bar"><h2>${tr('setup.needs')} <span class="tag">${missing.length}</span></h2></div>
+      ${missing.length ? missing.map(c => `<div class="rate-card missing"><div><strong>${esc(c.supplier)}</strong><div class="muted">${esc(c.item)} · ${esc(c.size)}</div></div><button class="primary" data-act="rate-edit" data-supplier="${esc(c.supplier)}" data-item="${esc(c.item)}" data-size="${esc(c.size)}">${tr('setup.setRate')}</button></div>`).join('') : '<p class="empty">' + tr('setup.allSet') + '</p>'}
     </section>
-    <section class="setup-section"><div class="bar"><h2>Price &amp; sewer pay</h2><button class="btn" data-act="rate-add">Add rate</button></div>
-      ${rateRows.length ? rateRows.map(r => `<div class="rate-card"><div><strong>${esc(r.supplier)}</strong><div class="muted">${esc(r.item)} · ${esc(r.size)}</div></div><div class="r"><strong>${peso(r.price)}</strong><div class="muted">pay ${peso(r.pay)}</div></div><button class="btn" data-act="rate-edit" data-supplier="${esc(r.supplier)}" data-item="${esc(r.item)}" data-size="${esc(r.size)}">Edit</button></div>`).join('') : '<p class="empty">No rates yet.</p>'}
-    </section>${cards('item', 'Items')}${cards('size', 'Sizes')}${cards('color', 'Colors')}${cards('supplier', 'Suppliers')}`;
+    <section class="setup-section"><div class="bar"><h2>${tr('setup.priceTitle')}</h2><button class="btn" data-act="rate-add">${tr('setup.addRate')}</button></div>
+      ${rateRows.length ? rateRows.map(r => `<div class="rate-card"><div><strong>${esc(r.supplier)}</strong><div class="muted">${esc(r.item)} · ${esc(r.size)}</div></div><div class="r"><strong>${peso(r.price)}</strong><div class="muted">${tr('rate.payShort')} ${peso(r.pay)}</div></div><button class="btn" data-act="rate-edit" data-supplier="${esc(r.supplier)}" data-item="${esc(r.item)}" data-size="${esc(r.size)}">${tr('common.edit')}</button></div>`).join('') : '<p class="empty">' + tr('setup.noRates') + '</p>'}
+    </section>${cards('item', tr('setup.items'))}${cards('size', tr('setup.sizes'))}${cards('color', tr('setup.colors'))}${cards('supplier', tr('setup.suppliers'))}`;
 }
-const views = {log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView, 'my-log': myLogView, 'my-finance': myFinanceView, 'my-salary': mySalaryView};
+let settingsFrom = 'log';
+function settingsView() {
+  const t = I18N.t, lang = I18N.lang(), size = I18N.textSize(), owner = isOwner();
+  const seg = (act, cur, opts, label) => `<div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, text]) => `<button class="btn${cur === v ? ' on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${esc(text)}</button>`).join('')}</div>`;
+  return `<button class="btn settings-back" data-act="settings-back">← ${esc(t('common.back'))}</button>
+  <h1 class="page-title">${esc(t('settings.title'))}</h1>
+  <section class="settings-card"><h2>${esc(t('settings.language'))}</h2>${seg('set-lang', lang, [['en', 'English'], ['fil', 'Filipino']], t('settings.language'))}</section>
+  <section class="settings-card"><h2>${esc(t('settings.textSize'))}</h2>${seg('set-textsize', size, [['normal', t('settings.size.normal')], ['large', t('settings.size.large')]], t('settings.textSize'))}</section>
+  ${demoMode ? '' : `<section class="settings-card"><h2>${esc(t('settings.name'))}</h2>
+    <div class="settings-row"><input class="in" id="set-name" aria-label="${esc(t('settings.name'))}" maxlength="80" autocomplete="name" value="${esc(me.name || '')}"><button class="btn" data-act="set-name">${esc(t('settings.name.save'))}</button></div>
+    <p class="muted settings-status" id="set-name-status" role="status"></p></section>`}
+  <section class="settings-card"><h2>${esc(t('settings.tutorial'))}</h2>
+    <div class="settings-row"><button class="btn" disabled>${esc(t('settings.tutorial.replay'))}</button><span class="muted">${esc(t('settings.tutorial.soon'))}</span></div></section>
+  <section class="settings-card"><h2>${esc(t('settings.workspace'))}</h2>
+    <div class="settings-meta"><span class="muted">${esc(t('settings.org'))}</span><strong>${esc((organization && organization.name) || '')}</strong></div>
+    <div class="settings-meta"><span class="muted">${esc(t('settings.role'))}</span><strong>${esc(owner ? t('role.owner') : t('role.sewer'))}</strong></div>
+    ${owner && !demoMode ? `<div class="settings-actions"><button class="btn" data-act="invite">${esc(t('settings.invite'))}</button><button class="btn" data-act="demo-data">${esc(t('settings.demo'))}</button></div>` : ''}
+  </section>
+  <section class="settings-card"><h2>${esc(t('settings.about'))}</h2><p class="muted" style="margin:0">${esc(t('settings.about.text'))}</p></section>
+  <div class="settings-actions">${demoMode ? `<button class="btn" data-act="demo-exit">${esc(t('menu.demoExit'))}</button>` : `<button class="btn" data-act="logout">${esc(t('menu.logout'))}</button>`}</div>`;
+}
+async function saveSettingsName() {
+  const t = I18N.t, input = $('set-name'), status = $('set-name-status');
+  if (!input || !status) return;
+  const name = input.value.trim().replace(/\s+/g, ' ');
+  if (name.length < 2) { input.classList.add('invalid'); status.textContent = t('settings.name.short'); return; }
+  input.classList.remove('invalid');
+  if (name !== me.name) {
+    if (cloud) {
+      const r = await sb.from('profiles').update({name}).eq('id', me.id).select('id');
+      if (r.error || !r.data || !r.data.length) {
+        const f = await sb.rpc('set_profile_name', {new_name: name});
+        if (f.error) { status.textContent = t('settings.name.fail') + f.error.message; return; }
+      }
+    }
+    me.name = name;
+    if (profileNames && profileNames.set) profileNames.set(me.id, name);
+    if (Array.isArray(people)) people.forEach(x => { if (x.id === me.id) x.name = name; });
+    renderTopbar();
+  }
+  status.textContent = t('settings.name.saved');
+}
+const views = {settings: settingsView, log: logView, sewers: sewersView, suppliers: suppliersView, finance: financeView, setup: setupView, 'my-log': myLogView, 'my-finance': myFinanceView, 'my-salary': mySalaryView};
 function renderTopbar() {
   const topbar = $('topbar');
   if (!me) { topbar.hidden = true; topbar.innerHTML = ''; return; }
   topbar.hidden = false;
+  const t = I18N.t;
   const realtimeLive = realtimeState === 'SUBSCRIBED';
   topbar.innerHTML = `<span class="live-status ${demoMode ? 'demo-status' : (realtimeLive ? 'live' : '')}" role="status" title="${demoMode ? 'Demo data is isolated from your workspace' : (realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting')}">
       <span class="live-dot" aria-hidden="true"></span><span class="live-label">${demoMode ? 'Demo' : (cloud ? (realtimeLive ? 'Live' : 'Syncing') : 'Local')}</span>
     </span><details class="profile-menu">
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
-      <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? 'Owner' : 'Sewer'}</span></strong>
-      ${demoMode ? '<button class="menu-btn" data-act="demo-exit">Back to my workspace</button>' : '<button class="menu-btn" data-act="demo-data">Try isolated demo data</button>'}
-      ${!demoMode && isOwner() ? '<button class="menu-btn" data-act="invite">Invite sewers</button>' : ''}
-      ${demoMode ? '' : '<button class="menu-btn" data-act="logout">Log out</button>'}
+      <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? t('role.owner') : t('role.sewer')}</span></strong>
+      <button class="menu-btn" data-act="settings">${esc(t('menu.settings'))}</button>
+      ${demoMode ? `<button class="menu-btn" data-act="demo-exit">${esc(t('menu.demoExit'))}</button>` : `<button class="menu-btn" data-act="logout">${esc(t('menu.logout'))}</button>`}
     </div>
   </details>`;
 }
@@ -791,8 +836,9 @@ function withTimeout(promise, milliseconds, message) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 function render() {
+  I18N.apply();
   if (isOwner() && ['my-log', 'my-finance', 'my-salary'].includes(view)) view = 'log';
-  if (isSewer() && !['my-log', 'my-finance', 'my-salary'].includes(view)) view = 'my-log';
+  if (isSewer() && !['my-log', 'my-finance', 'my-salary', 'settings'].includes(view)) view = 'my-log';
   const nextView = view;
   document.getElementById('main').innerHTML = views[nextView]();
   renderTopbar();
@@ -806,11 +852,11 @@ function render() {
 const $ = id => document.getElementById(id);
 showBusy('');
 const WIZARD_STEPS = [
-  {key: 'client', label: 'Who is it from?', kind: 'supplier'},
-  {key: 'item', label: 'What are you sewing?', kind: 'item'},
-  {key: 'color', label: 'What color is it?', kind: 'color'},
-  {key: 'size', label: 'What size is it?', kind: 'size'},
-  {key: 'qty', label: 'How many pieces?', kind: 'quantity'}
+  {key: 'client', get label() { return tr('wiz.client'); }, kind: 'supplier'},
+  {key: 'item', get label() { return tr('wiz.item'); }, kind: 'item'},
+  {key: 'color', get label() { return tr('wiz.color'); }, kind: 'color'},
+  {key: 'size', get label() { return tr('wiz.size'); }, kind: 'size'},
+  {key: 'qty', get label() { return tr('wiz.qtyQ'); }, kind: 'quantity'}
 ];
 function wizardOptions(kind) {
   if (kind !== 'item' || !wizard.values.client) return catalogValues(kind);
@@ -828,16 +874,16 @@ function renderWizard() {
   const s = WIZARD_STEPS[wizard.step], values = wizardOptions(s.kind);
   const selected = wizard.values[s.key];
   const cards = values.map(v => `<button class="choice-card ${selected === v ? 'selected' : ''}" data-act="wizard-choice" data-key="${s.key}" data-value="${esc(v)}">${esc(v)}</button>`).join('');
-  const other = `<button class="choice-card other ${wizard.other ? 'selected' : ''}" data-act="wizard-other" data-key="${s.key}"><span class="other-icon">＋</span>Other</button>`;
-  const custom = wizard.other ? `<input class="in wizard-other-input" id="wizard-other-input" placeholder="Type a new ${s.label.toLowerCase()}" value="${esc(selected || '')}" autofocus>` : '';
-  const qty = s.kind === 'quantity' ? `<input class="in wizard-quantity" id="wizard-quantity" type="number" min="1" inputmode="numeric" placeholder="Quantity" value="${esc(selected || '')}" autofocus>` : '';
-  $('wizard').innerHTML = `<button type="button" class="wizard-close" data-act="close-wizard" aria-label="Close add entry">&times;</button>
-    <div class="wizard-progress"><span>Step ${wizard.step + 1} of ${WIZARD_STEPS.length}</span><span>${wizard.date === ymd(new Date()) ? 'Today' : wizard.date}</span></div>
+  const other = `<button class="choice-card other ${wizard.other ? 'selected' : ''}" data-act="wizard-other" data-key="${s.key}"><span class="other-icon">＋</span>${tr('wiz.other')}</button>`;
+  const custom = wizard.other ? `<input class="in wizard-other-input" id="wizard-other-input" placeholder="${tr('wiz.new_' + s.key)}" value="${esc(selected || '')}" autofocus>` : '';
+  const qty = s.kind === 'quantity' ? `<input class="in wizard-quantity" id="wizard-quantity" type="number" min="1" inputmode="numeric" placeholder="${tr('wiz.qty')}" value="${esc(selected || '')}" autofocus>` : '';
+  $('wizard').innerHTML = `<button type="button" class="wizard-close" data-act="close-wizard" aria-label="${tr('wiz.close')}">&times;</button>
+    <div class="wizard-progress"><span>${tr('wiz.step').replace('{n}', wizard.step + 1).replace('{total}', WIZARD_STEPS.length)}</span><span>${wizard.date === ymd(new Date()) ? tr('wiz.today') : wizard.date}</span></div>
     <h2 class="wizard-title">${s.label}</h2><div class="choice-grid">${s.kind === 'quantity' ? qty : cards + other}</div>
-    ${custom}<button class="textbtn date-toggle" data-act="wizard-date">Using today · Change date</button>`;
+    ${custom}<button class="textbtn date-toggle" data-act="wizard-date">${tr('wiz.usingToday')}</button>`;
   $('dlg').querySelector('[data-act="wizard-back"]').hidden = wizard.step === 0;
   const next = $('dlg').querySelector('[data-act="wizard-next"]');
-  next.textContent = wizard.step === WIZARD_STEPS.length - 1 ? 'Save entry' : 'Continue';
+  next.textContent = wizard.step === WIZARD_STEPS.length - 1 ? tr('wiz.save') : tr('common.continue');
   next.hidden = s.kind !== 'quantity' && !wizard.other;
 }
 function wizardValue() {
@@ -849,7 +895,7 @@ function wizardValue() {
 function wizardNext() {
   const s = WIZARD_STEPS[wizard.step], value = wizardValue();
   if (!value || (s.kind === 'quantity' && !(Number(value) > 0))) {
-    $('err').textContent = s.kind === 'quantity' ? 'Enter a quantity above 0.' : 'Choose an option or add a new value.';
+    $('err').textContent = s.kind === 'quantity' ? tr('wiz.errQty') : tr('wiz.errChoose');
     return;
   }
   wizard.values[s.key] = s.kind === 'quantity' ? Number(value) : value;
@@ -909,7 +955,7 @@ async function saveEntry() {
     if (error) {
       entries = entries.filter(x => x.id !== tmp.id);
       render();
-      alert('Could not save entry: ' + error.message);
+      alert(tr('err.saveEntry') + error.message);
       return;
     }
 
@@ -959,7 +1005,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'wizard-next') { wizardNext(); return; }
   else if (d.act === 'wizard-back') { wizardBack(); return; }
   else if (d.act === 'wizard-date') {
-    const date = prompt('Use a different date (YYYY-MM-DD), or cancel to keep today:', wizard.date);
+    const date = prompt(tr('wiz.datePrompt'), wizard.date);
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) { wizard.date = date; renderWizard(); }
     return;
   }
@@ -999,6 +1045,11 @@ document.addEventListener('click', ev => {
   else if (d.act === 'demo-exit') { exitDemoData(); return; }
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
+  else if (d.act === 'settings-back') { view = settingsFrom || 'log'; sel = null; swSel = null; spSel = null; pendingDel = null; }
+  else if (d.act === 'settings') { if (view !== 'settings') settingsFrom = view; view = 'settings'; sel = null; swSel = null; spSel = null; pendingDel = null; }
+  else if (d.act === 'set-lang') { I18N.setLang(d.v); }
+  else if (d.act === 'set-textsize') { I18N.setTextSize(d.v); }
+  else if (d.act === 'set-name') { saveSettingsName(); return; }
   else if (d.act === 'week' || d.act === 'day') {
     const t = d.act, same = sel && sel.t === t && sel.d === d.d;
     sel = same ? null : {t, d: d.d};
@@ -1046,9 +1097,9 @@ function openRateDialog(supplier = '', item = '', size = '') {
   $('rate-dlg').showModal();
 }
 function addRateFlow() {
-  const supplier = prompt('Supplier name:');
+  const supplier = prompt(tr('prompt.supplier'));
   if (!supplier || !supplier.trim()) return;
-  const item = prompt('Item name:');
+  const item = prompt(tr('prompt.item'));
   if (!item || !item.trim()) return;
   const size = prompt('Size:');
   if (!size || !size.trim()) return;
@@ -1057,7 +1108,7 @@ function addRateFlow() {
 async function saveRate() {
   const price = Number($('r-price').value), pay = Number($('r-pay').value);
   if (!editingRate || !(price >= 0) || !(pay >= 0) || $('r-price').value === '' || $('r-pay').value === '') {
-    $('rate-err').textContent = 'Enter both a valid price and sewer pay.'; return;
+    $('rate-err').textContent = tr('rate.errBoth'); return;
   }
   const r = {...editingRate, price, pay};
   const existing = rates.findIndex(x => rateKey(x.supplier, x.item, x.size) === rateKey(r.supplier, r.item, r.size));
@@ -1097,7 +1148,7 @@ async function addCatalogValue(kind) {
   if (!catalog[kind].some(v => v.toLowerCase() === clean.toLowerCase())) catalog[kind].push(clean);
   if (remote()) {
     const {error} = await sb.from('tally_catalog_values').insert({organization_id:organization.id, kind, value:clean, created_by:me.id});
-    if (error && error.code !== '23505') { alert('Could not add option: ' + error.message); return; }
+    if (error && error.code !== '23505') { alert(tr('err.addOption') + error.message); return; }
   } else if (!demoMode) saveLocalSetup();
   render();
 }
@@ -1371,12 +1422,10 @@ function setAuthMode(m) {
   $('a-name').hidden = $('a-name-l').hidden = m !== 'signup';
   $('a-name').required = m === 'signup';
   $('a-name').classList.remove('invalid');
-  $('a-title').textContent = m === 'signup' ? 'Create your account' : 'Welcome back';
-  $('a-go').textContent = m === 'signup' ? 'Sign up' : 'Log in';
-  $('a-switch').innerHTML = m === 'signup'
-    ? 'Already have an account? <strong>Log in</strong>'
-    : "Don't have an account? <strong>Sign up</strong>";
-  $('a-sub').textContent = m === 'signup' ? 'Create your account' : 'Log in to continue';
+  $('a-title').textContent = m === 'signup' ? tr('auth.createTitle') : tr('auth.welcome');
+  $('a-go').textContent = m === 'signup' ? tr('auth.signup') : tr('auth.login');
+  $('a-switch').innerHTML = m === 'signup' ? tr('auth.switchToLogin') : tr('auth.switchToSignup');
+  $('a-sub').textContent = m === 'signup' ? tr('auth.createTitle') : tr('auth.loginSub');
   $('a-err').textContent = '';
 }
 function confirmationRedirectUrl() {
@@ -1386,8 +1435,8 @@ function showConfirmation(email) {
   const panel = document.querySelector('.confirm-panel');
   panel.classList.remove('loading');
   $('confirm-icon').textContent = '✉';
-  $('confirm-title').textContent = 'Check your email';
-  $('confirm-message').innerHTML = 'We sent a confirmation link to <strong id="confirm-email"></strong>. Open it to activate your account.';
+  $('confirm-title').textContent = tr('auth.checkEmail');
+  $('confirm-message').innerHTML = tr('auth.confirmMsg');
   $('confirm-email').textContent = email;
   $('confirm-actions').hidden = false;
   document.querySelector('[data-act="auth-test-confirm"]').hidden = !authTest;
@@ -1399,8 +1448,8 @@ function showConfirmationLoading(email) {
   const panel = document.querySelector('.confirm-panel');
   panel.classList.add('loading');
   $('confirm-icon').innerHTML = loaderHTML('Tally', true);
-  $('confirm-title').textContent = 'Creating your account…';
-  $('confirm-message').textContent = `Setting up ${email}. Just a moment.`;
+  $('confirm-title').textContent = tr('auth.creating');
+  $('confirm-message').textContent = tr('auth.settingUp').replace('{email}', email);
   $('confirm-actions').hidden = true;
   $('confirm-status').textContent = '';
   $('confirm-modal').hidden = false;
@@ -1665,7 +1714,7 @@ async function removeEntry(id) {
   if (String(id).startsWith('tmp-')) return; // still saving, nothing to delete yet
   const removed = entries.find(e => e.id == id);
   if (!removed) return;
-  if (isLocked(removed.date)) { alert('This week is finalized. Reopen it first to delete entries.'); return; }
+  if (isLocked(removed.date)) { alert(tr('err.deleteLocked')); return; }
 
   entries = entries.filter(e => e.id != id);
   pendingDel = null;
@@ -1676,7 +1725,7 @@ async function removeEntry(id) {
   const {data, error} = await sb.from('entries').delete().eq('id', id).select();
   if (error || !data || data.length === 0) {
     alert(error
-      ? 'Could not delete entry: ' + error.message
+      ? tr('err.delEntry') + error.message
       : 'Could not delete this entry. You may not have permission, or it was already deleted.');
     await refresh(); // resync with the real data instead of guessing
     render();
@@ -1705,4 +1754,4 @@ async function boot() {
   }
 }
 initMeshBackground();
-boot();
+I18N.ready.then(boot);

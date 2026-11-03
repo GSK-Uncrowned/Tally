@@ -1,0 +1,25 @@
+/* Language screen, Settings page, text size. Uses the same color variables as style.css. */
+
+/* First-open language picker */
+.lang-screen { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; background: var(--bg); color: var(--ink); text-align: center; }
+.lang-logo { width: 72px; color: var(--ink); margin-bottom: 8px; }
+.lang-screen h1 { margin: 0; font-size: 1.6rem; }
+.lang-sub { margin: 0 0 12px; color: var(--muted); font-size: 1.15rem; }
+.lang-btn { width: min(320px, 86vw); padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 1.15rem; font-weight: 600; cursor: pointer; }
+.lang-btn:hover, .lang-btn:focus-visible { border-color: var(--ink); }
+
+/* Settings page */
+.settings-card { border: 1px solid var(--line); border-radius: 15px; padding: 16px; margin: 14px 0; background: var(--surface); }
+.settings-card h2 { margin: 0 0 10px; font-size: 1.05rem; }
+.settings-card .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-row { display: flex; gap: 8px; align-items: center; }
+.settings-row .in { flex: 1; min-width: 0; }
+.settings-meta { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.settings-status { min-height: 1.3em; margin: 8px 0 0; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* Text size: scales rem-based sizes and the body text */
+html[data-textsize="large"] { font-size: 112.5%; }
+html[data-textsize="large"] body { font-size: 18px; }
+
+.settings-back { margin: 4px 0 10px; }

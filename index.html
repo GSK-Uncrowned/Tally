@@ -4,27 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tally</title>
-<meta name="description" content="A simple sewing log and income tracker for small sewing businesses.">
-<link rel="canonical" href="https://www.tally-khenszn.site/">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://www.tally-khenszn.site/">
-<meta property="og:title" content="Tally - Sewing log and income tracker">
-<meta property="og:description" content="A simple sewing log and income tracker for small sewing businesses.">
-<meta property="og:site_name" content="Tally">
-<meta property="og:image" content="https://www.tally-khenszn.site/assets/icon-512.png">
-<meta property="og:image:alt" content="Tally logo">
-<meta property="og:image:width" content="512">
-<meta property="og:image:height" content="512">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Tally - Sewing log and income tracker">
-<meta name="twitter:description" content="A simple sewing log and income tracker for small sewing businesses.">
-<meta name="twitter:image" content="https://www.tally-khenszn.site/assets/icon-512.png">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Gochi+Hand&display=swap">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="settings.css">
 <!-- HALLOWEEN theme: delete these two lines to remove it completely -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&display=swap">
 <link rel="stylesheet" href="theme-halloween.css">
@@ -39,14 +25,14 @@
 <div class="app">
   <nav>
     <div class="brand"><svg viewBox="0 7 48 35" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="11" x2="10.9" y2="38"/><line x1="19" y1="10" x2="18.3" y2="39.5"/><line x1="28" y1="12.5" x2="28.8" y2="37"/><line x1="37" y1="10" x2="36.8" y2="38.5"/><line x1="2.5" y1="37" x2="45.5" y2="12" stroke-width="3.2"/></svg><span class="brand-word">Tally</span></div>
-    <button data-view="log">Log</button>
-    <button data-view="sewers">Salary</button>
-    <button data-view="suppliers">Suppliers</button>
-    <button data-view="finance">Finance</button>
-    <button data-view="setup">Setup</button>
-    <button data-view="my-log">My logs</button>
-    <button data-view="my-finance">Finance</button>
-    <button data-view="my-salary">Salary</button>
+    <button data-view="log" data-i18n="nav.log">Log</button>
+    <button data-view="sewers" data-i18n="nav.salary">Salary</button>
+    <button data-view="suppliers" data-i18n="nav.suppliers">Suppliers</button>
+    <button data-view="finance" data-i18n="nav.finance">Finance</button>
+    <button data-view="setup" data-i18n="nav.setup">Setup</button>
+    <button data-view="my-log" data-i18n="nav.myLogs">My logs</button>
+    <button data-view="my-finance" data-i18n="nav.finance">Finance</button>
+    <button data-view="my-salary" data-i18n="nav.salary">Salary</button>
   </nav>
   <div class="workspace">
     <header class="topbar" id="topbar" hidden></header>
@@ -57,16 +43,16 @@
 <dialog id="dlg">
   <div id="wizard"></div>
   <p id="err" role="alert"></p>
-  <div class="actions"><button class="btn" data-act="wizard-back">Back</button><button class="primary" data-act="wizard-next">Continue</button></div>
+  <div class="actions"><button class="btn" data-act="wizard-back" data-i18n="common.back">Back</button><button class="primary" data-act="wizard-next">Continue</button></div>
 </dialog>
 
 <dialog id="rate-dlg">
-  <h2 style="margin-top:0">Set price &amp; sewer pay</h2>
+  <h2 style="margin-top:0" data-i18n="rate.title">Set price &amp; sewer pay</h2>
   <p class="muted" id="rate-context"></p>
-  <label class="required" for="r-price">Price per piece (₱)</label><input class="in" id="r-price" type="number" min="0" step="0.01">
-  <label class="required" for="r-pay">Sewer pay per piece (₱)</label><input class="in" id="r-pay" type="number" min="0" step="0.01">
+  <label class="required" for="r-price" data-i18n="rate.price">Price per piece (₱)</label><input class="in" id="r-price" type="number" min="0" step="0.01">
+  <label class="required" for="r-pay" data-i18n="rate.pay">Sewer pay per piece (₱)</label><input class="in" id="r-pay" type="number" min="0" step="0.01">
   <p id="rate-err" role="alert"></p>
-  <div class="actions"><button class="btn" data-act="rate-cancel">Cancel</button><button class="primary" data-act="rate-save">Save rate</button></div>
+  <div class="actions"><button class="btn" data-act="rate-cancel" data-i18n="common.cancel">Cancel</button><button class="primary" data-act="rate-save" data-i18n="rate.save">Save rate</button></div>
 </dialog>
 
 <dialog id="fin-dlg" aria-label="Finalize week"></dialog>
@@ -77,13 +63,13 @@
     <div class="auth-brand"><svg viewBox="0 7 48 35" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="11" x2="10.9" y2="38"/><line x1="19" y1="10" x2="18.3" y2="39.5"/><line x1="28" y1="12.5" x2="28.8" y2="37"/><line x1="37" y1="10" x2="36.8" y2="38.5"/><line x1="2.5" y1="37" x2="45.5" y2="12" stroke-width="3.2"/></svg><span class="brand-word">Tally</span></div>
     <h1 id="a-title">Welcome back</h1>
     <p class="muted" id="a-sub">Log in to continue</p>
-    <label class="required" for="a-name" id="a-name-l" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
-    <label class="required" for="a-email">Email</label><input class="in" id="a-email" type="email" autocomplete="email" required>
-    <label class="required" for="a-pass">Password</label><input class="in" id="a-pass" type="password" autocomplete="current-password" required>
+    <label class="required" for="a-name" id="a-name-l" data-i18n="auth.name" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
+    <label class="required" for="a-email" data-i18n="auth.email">Email</label><input class="in" id="a-email" type="email" autocomplete="email" required>
+    <label class="required" for="a-pass" data-i18n="auth.password">Password</label><input class="in" id="a-pass" type="password" autocomplete="current-password" required>
     <p id="a-err" role="alert"></p>
     <button class="primary" id="a-go" data-act="auth-go">Log in</button>
-    <div class="auth-divider"><span>or</span></div>
-    <button class="oauth-btn" data-act="auth-google"><svg class="google-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.22Z"/><path fill="#34A853" d="M12 21.67c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.93-3.31.93-2.55 0-4.71-1.72-5.49-4.03H3.27v2.53A9.74 9.74 0 0 0 12 21.67Z"/><path fill="#FBBC05" d="M6.51 13.77A5.85 5.85 0 0 1 6.2 12c0-.61.11-1.2.31-1.77V7.7H3.27A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.05 1.02 4.3l3.24-2.53Z"/><path fill="#EA4335" d="M12 6.2c1.44 0 2.73.5 3.75 1.48l2.81-2.81C16.84 3.25 14.63 2.33 12 2.33a9.74 9.74 0 0 0-8.73 5.37l3.24 2.53C7.29 7.92 9.45 6.2 12 6.2Z"/></svg>Continue with Google</button>
+    <div class="auth-divider"><span data-i18n="auth.or">or</span></div>
+    <button class="oauth-btn" data-act="auth-google"><svg class="google-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.22Z"/><path fill="#34A853" d="M12 21.67c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.93-3.31.93-2.55 0-4.71-1.72-5.49-4.03H3.27v2.53A9.74 9.74 0 0 0 12 21.67Z"/><path fill="#FBBC05" d="M6.51 13.77A5.85 5.85 0 0 1 6.2 12c0-.61.11-1.2.31-1.77V7.7H3.27A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.05 1.02 4.3l3.24-2.53Z"/><path fill="#EA4335" d="M12 6.2c1.44 0 2.73.5 3.75 1.48l2.81-2.81C16.84 3.25 14.63 2.33 12 2.33a9.74 9.74 0 0 0-8.73 5.37l3.24 2.53C7.29 7.92 9.45 6.2 12 6.2Z"/></svg><span data-i18n="auth.google">Continue with Google</span></button>
     <button class="textbtn" id="a-switch" data-act="auth-mode">Don't have an account? <strong>Sign up</strong></button>
   </div>
 </div>
@@ -93,8 +79,8 @@
     <h2 id="confirm-title">Check your email</h2>
     <p id="confirm-message">We sent a confirmation link to <strong id="confirm-email"></strong>. Open it to activate your account.</p>
     <div id="confirm-actions">
-      <button class="primary" data-act="auth-resend">Resend email</button>
-      <button class="textbtn" data-act="auth-back">Back to sign up</button>
+      <button class="primary" data-act="auth-resend" data-i18n="auth.resend">Resend email</button>
+      <button class="textbtn" data-act="auth-back" data-i18n="auth.backToSignup">Back to sign up</button>
       <button class="textbtn" data-act="auth-test-confirm" hidden>Simulate email confirmation</button>
     </div>
     <p id="confirm-status" role="status"></p>
@@ -146,6 +132,7 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="config.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
