@@ -19,6 +19,7 @@ It uses a black-and-white minimalist design, works on phones and desktops, and f
 ## Tech
 
 - Plain HTML, CSS, and JavaScript, split into `index.html`, `style.css`, and `app.js`, with the Supabase keys in `config.js`. No framework and no build step.
+- The page includes Open Graph and Twitter Card metadata, so shared links show a branded title, description, and preview image.
 - When Supabase is configured, data is saved online so signed-in users can share it. Without Supabase configuration, data is saved in the browser (localStorage).
 - In cloud mode, the app uses Supabase Realtime to keep entries, rates, and catalog options synchronized across open devices. Realtime must be enabled for those tables in the Supabase project.
 - Apply [`supabase-schema.sql`](./supabase-schema.sql) in the Supabase SQL editor before using organization onboarding. It adds organization membership, six-digit invite functions, and role-aware RLS.
