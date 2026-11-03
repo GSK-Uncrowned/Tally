@@ -1,0 +1,174 @@
+/* ==========================================================================
+   TALLY HALLOWEEN THEME  (round 1: colors, slime, font; round 2: flat characters)
+   Everything here only applies while <html class="halloween"> is set.
+   To remove: delete the "halloween" class from <html> in index.html (quick off),
+   or delete this file and its <link> tags (full removal). style.css is untouched.
+   Dark / light follows the device setting, same as the normal site.
+   ========================================================================== */
+
+/* ---------- 1. Colors (light = default, dark = device dark mode) ---------- */
+html.halloween {
+  --bg: #fbf3e4; --surface: #fffaf0; --ink: #1b1124; --muted: #6f6076;
+  --line: #e6d6bd; --hl: #f3e6cf;
+  --accent: #e8620c; --accent-ink: #fff;
+  --purple: #7c3aed;
+  --slime: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='18' viewBox='0 0 48 18' preserveAspectRatio='none'%3E%3Cg fill='%23ff7a1a'%3E%3Crect width='48' height='4'/%3E%3Crect x='6' width='5' height='11' rx='2.5'/%3E%3Crect x='20' width='6' height='15' rx='3'/%3E%3Crect x='34' width='4' height='8' rx='2'/%3E%3Crect x='42' width='3' height='6' rx='1.5'/%3E%3C/g%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  html.halloween:root {
+    --bg: #0d0a12; --surface: #17111f; --ink: #f4ede0; --muted: #a99bb8;
+    --line: #33263f; --hl: #231a2d;
+    --accent: #ff7a1a; --accent-ink: #1a0f00;
+    --purple: #a78bfa;
+  }
+}
+
+html.halloween .loading-screen #busy { background: var(--bg); }
+html.halloween .loading-screen #busy .tl { color: var(--ink); }
+html.halloween dialog::backdrop { background: rgba(10, 6, 16, .62); }
+/* No dark fade strip behind the floating finalize button */
+html.halloween .fin-bar { background: none; }
+html.halloween :focus-visible { outline-color: var(--accent); }
+
+/* ---------- 2. Accent on buttons and the active tab ---------- */
+html.halloween .primary,
+html.halloween .fab,
+html.halloween .fin-btn,
+html.halloween .btn.on,
+html.halloween nav button[aria-current=page] {
+  background: var(--accent) !important;
+  color: var(--accent-ink) !important;
+  border-color: var(--accent) !important;
+}
+html.halloween nav button:hover { color: var(--accent); }
+
+/* Squish when pressed */
+html.halloween .primary,
+html.halloween .fab { transition: transform .15s cubic-bezier(.3, 1.6, .5, 1); }
+html.halloween .primary:active,
+html.halloween .fab:active { transform: scale(1.04, .9); }
+
+/* ---------- 3. Orange slime drips ---------- */
+
+/* Under buttons */
+html.halloween .primary,
+html.halloween .fab { position: relative; }
+html.halloween .fab { position: fixed; } /* keep the floating button floating */
+html.halloween .primary::after,
+html.halloween .fab::after {
+  content: ""; position: absolute; left: 14px; right: 14px; top: calc(100% - 5px); height: 18px;
+  background: var(--accent); -webkit-mask: var(--slime) 0 0 / 48px 18px; -webkit-mask-repeat: round no-repeat; mask: var(--slime) 0 0 / 48px 18px; mask-repeat: round no-repeat;
+  pointer-events: none;
+}
+/* Pill-shaped buttons (Add entry, login/signup, finalize dialog): start the drips past the end curves */
+html.halloween .fab::after { left: 30px; right: 30px; top: calc(100% - 14px); height: 36px; -webkit-mask-size: 60px 36px; mask-size: 60px 36px; }
+html.halloween .authbox .primary::after,
+html.halloween .fin-actions .primary::after { left: 28px; right: 28px; }
+html.halloween .primary:disabled::after { opacity: .4; animation: none; }
+
+/* Hanging from the top edge of popups */
+html.halloween dialog,
+html.halloween .confirm-panel { position: relative; padding-top: 28px; }
+html.halloween dialog { position: fixed; }
+html.halloween dialog::before,
+html.halloween .confirm-panel::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 18px;
+  border-radius: 20px 20px 0 0;
+  background: var(--accent); -webkit-mask: var(--slime) 0 0 / 48px 18px; -webkit-mask-repeat: round no-repeat; mask: var(--slime) 0 0 / 48px 18px; mask-repeat: round no-repeat;
+  pointer-events: none;
+}
+
+/* ---------- 4. Spooky font: wordmark and page titles only ---------- */
+html.halloween .brand-word,
+html.halloween .tl-word,
+html.halloween .page-title {
+  font-family: "Creepster", "Gochi Hand", cursive;
+  font-weight: 400; letter-spacing: .04em; color: var(--accent);
+}
+html.halloween nav .brand { font-size: 1.7rem; letter-spacing: .04em; }
+html.halloween .tl-word { font-size: 1.9rem; }
+html.halloween .tl-word.long { font-size: 1.25rem; }
+
+/* The tally-mark logo takes the accent color */
+html.halloween .brand svg,
+html.halloween .auth-brand svg,
+html.halloween .tl svg { color: var(--accent); }
+
+/* ---------- 5. Accessibility and small screens ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html.halloween *::before, html.halloween *::after { animation: none !important; }
+  html.halloween .primary, html.halloween .fab { transition: none; }
+}
+
+/* ==========================================================================
+   ROUND 2: flat characters (CSS only, no JS). Delete from here down to drop them.
+   ========================================================================== */
+html.halloween {
+  --ghost: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'%3E%3Cpath d='M20 3C11 3 5 10 5 19V42l5-4 5 4 5-4 5 4 5-4 5 4V19C35 10 29 3 20 3z' fill='%23f4ede0' stroke='%231b1124' stroke-width='2' stroke-linejoin='round'/%3E%3Cellipse cx='14.5' cy='19' rx='2.4' ry='3.2' fill='%231b1124'/%3E%3Cellipse cx='25.5' cy='19' rx='2.4' ry='3.2' fill='%231b1124'/%3E%3Cellipse cx='20' cy='27' rx='2.2' ry='3' fill='%231b1124'/%3E%3C/svg%3E");
+  --pumpkin: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 40'%3E%3Cpath d='M22 9C12 3 2 9 2 22s8 16 20 16 20-3 20-16S32 3 22 9z' fill='%23ff7a1a' stroke='%231b1124' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M20 8c0-4 1-6 3-7l2 3c-1 1-1 3-1 5z' fill='%233f7d2a' stroke='%231b1124' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M11 20l5-6 5 6zM23 20l5-6 5 6z' fill='%231b1124'/%3E%3Cpath d='M13 26h18l-3 6-3-3-3 4-3-4-3 3z' fill='%231b1124'/%3E%3C/svg%3E");
+  --spider: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 46'%3E%3Cpath d='M15 0v26' stroke='%23a99bb8' stroke-width='1.4'/%3E%3Cpath d='M10 29l-7-5M9 32l-7 1M10 36l-6 6M20 29l7-5M21 32l7 1M20 36l6 6' stroke='%23a99bb8' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='15' cy='34' r='6.5' fill='%232a2233' stroke='%23a99bb8' stroke-width='1.4'/%3E%3Ccircle cx='15' cy='26' r='3.8' fill='%232a2233' stroke='%23a99bb8' stroke-width='1.4'/%3E%3Ccircle cx='13.6' cy='25.4' r='.9' fill='%23ff7a1a'/%3E%3Ccircle cx='16.4' cy='25.4' r='.9' fill='%23ff7a1a'/%3E%3C/svg%3E");
+  --bat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 22'%3E%3Cpath d='M22 8L19 3 18 8C14 4 8 4 2 9c3 0 5 2 6 4 1-2 3-3 5-2 1 2 3 3 5 2l4 5 4-5c2 1 4 0 5-2 2-1 4 0 5 2 1-2 3-4 6-4-6-5-12-5-16-1l-1-5z' fill='%232a2233' stroke='%23a99bb8' stroke-width='1.3' stroke-linejoin='round'/%3E%3Ccircle cx='20.6' cy='10' r='.8' fill='%23ff7a1a'/%3E%3Ccircle cx='23.4' cy='10' r='.8' fill='%23ff7a1a'/%3E%3C/svg%3E");
+  --cat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 54'%3E%3Cpath d='M43 46c10 0 14-8 10-18' fill='none' stroke='%23a99bb8' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M43 46c10 0 14-8 10-18' fill='none' stroke='%232a2233' stroke-width='4' stroke-linecap='round'/%3E%3Cg fill='%23a99bb8' stroke='%23a99bb8' stroke-width='3.2' stroke-linejoin='round'%3E%3Ccircle cx='30' cy='16' r='10'/%3E%3Cpath d='M21 12L22 1l8 6zM39 12L38 1l-8 6z'/%3E%3Cellipse cx='30' cy='38' rx='14' ry='14'/%3E%3C/g%3E%3Cg fill='%232a2233'%3E%3Ccircle cx='30' cy='16' r='10'/%3E%3Cpath d='M21 12L22 1l8 6zM39 12L38 1l-8 6z'/%3E%3Cellipse cx='30' cy='38' rx='14' ry='14'/%3E%3C/g%3E%3Cellipse cx='26' cy='16' rx='1.8' ry='2.4' fill='%23ffcc33'/%3E%3Cellipse cx='34' cy='16' rx='1.8' ry='2.4' fill='%23ffcc33'/%3E%3C/svg%3E");
+  --tomb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath fill-rule='evenodd' d='M2 14V6a5 5 0 0 1 10 0v8zM6.3 3.5h1.4v2h2v1.4h-2V11H6.3V6.9h-2V5.5h2z'/%3E%3C/svg%3E");
+}
+@keyframes halloween-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes halloween-swing { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes halloween-bat-l {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(.4); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% - 120px), -70px) scale(1); }
+}
+@keyframes halloween-bat-r {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(.4); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + 120px), -70px) scale(1); }
+}
+
+/* Loading screen: ghost floats above the logo, small pumpkin underneath */
+html.halloween #busy .tl:not(.sm)::before {
+  content: ""; width: 46px; height: 52px; margin-bottom: 12px;
+  background: var(--ghost) center / contain no-repeat;
+  animation: halloween-float 3.2s ease-in-out infinite;
+}
+html.halloween #busy .tl:not(.sm)::after {
+  content: ""; width: 34px; height: 31px; margin-top: 14px;
+  background: var(--pumpkin) center / contain no-repeat;
+}
+
+/* Login: a spider swinging from the top of the card */
+html.halloween .authbox { position: relative; }
+html.halloween .authbox::before {
+  content: ""; position: absolute; top: 0; right: 30px; width: 26px; height: 40px;
+  background: var(--spider) top center / contain no-repeat;
+  transform-origin: 50% 0; animation: halloween-swing 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Empty lists: a black cat */
+html.halloween .empty::before {
+  content: ""; display: block; width: 60px; height: 54px; margin: 0 auto 12px;
+  background: var(--cat) center / contain no-repeat;
+}
+
+/* QR scanned: two bats flutter out instead of the burst (green check stays) */
+html.halloween .ok-burst { display: none; }
+html.halloween .scan-success { position: relative; }
+html.halloween .scan-success::before,
+html.halloween .scan-success::after {
+  content: ""; position: absolute; left: 50%; top: 40px; width: 34px; height: 17px;
+  background: var(--bat) center / contain no-repeat; opacity: 0; pointer-events: none;
+  animation: halloween-bat-l 1.1s ease-out .8s forwards;
+}
+html.halloween .scan-success::after { animation-name: halloween-bat-r; }
+
+/* Finalized week: tombstone instead of the lock icon (label stays "Finalized") */
+html.halloween .wk-pill svg { display: none; }
+html.halloween .wk-pill.on::before {
+  content: ""; display: inline-block; width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px;
+  background: currentColor; -webkit-mask: var(--tomb) center / contain no-repeat; mask: var(--tomb) center / contain no-repeat;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.halloween #busy .tl::before, html.halloween .authbox::before { animation: none; }
+  html.halloween .scan-success::before, html.halloween .scan-success::after { animation: none; opacity: 0; }
+}
