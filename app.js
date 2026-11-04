@@ -1419,9 +1419,6 @@ function hideAuth() {
 function setAuthMode(m) {
   authMode = m;
   hideConfirmation();
-  $('a-name').hidden = $('a-name-l').hidden = m !== 'signup';
-  $('a-name').required = m === 'signup';
-  $('a-name').classList.remove('invalid');
   $('a-title').textContent = m === 'signup' ? tr('auth.createTitle') : tr('auth.welcome');
   $('a-go').textContent = m === 'signup' ? tr('auth.signup') : tr('auth.login');
   $('a-switch').innerHTML = m === 'signup' ? tr('auth.switchToLogin') : tr('auth.switchToSignup');
@@ -1643,12 +1640,12 @@ async function enter() {
   hideAuth(); hideOnboarding(); view = isOwner() ? 'log' : 'my-log'; render();
 }
 async function authGo() {
-  const email = $('a-email').value.trim(), password = $('a-pass').value, name = $('a-name').value.trim();
-  const authFields = authMode === 'signup' ? ['a-name', 'a-email', 'a-pass'] : ['a-email', 'a-pass'];
+  const email = $('a-email').value.trim(), password = $('a-pass').value;
+  const authFields = ['a-email', 'a-pass'];
   if (!validateRequired(authFields)) return;
-  if (!email || password.length < 6 || (authMode === 'signup' && !name)) {
+  if (!email || password.length < 6) {
     if (password.length < 6) $('a-pass').classList.add('invalid');
-    $('a-err').textContent = authMode === 'signup' ? 'Enter your name, an email, and a password of 6 or more characters.' : 'Enter your email and password.'; return;
+    $('a-err').textContent = 'Enter your email and a password of 6 or more characters.'; return;
   }
   if (authTest) {
     if (authMode === 'signup') {
@@ -1662,7 +1659,7 @@ async function authGo() {
   try {
     if (authMode === 'signup') showConfirmationLoading(email);
     const res = authMode === 'signup'
-      ? await sb.auth.signUp({email, password, options: {data: {name}, emailRedirectTo: confirmationRedirectUrl()}})
+      ? await sb.auth.signUp({email, password, options: {emailRedirectTo: confirmationRedirectUrl()}})
       : await sb.auth.signInWithPassword({email, password});
     if (res.error) {
       const fields = authMode === 'login' ? ['a-email', 'a-pass'] : ['a-email'];
