@@ -683,10 +683,21 @@ const SET_ICO = {
   profile: ico('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>'),
   workspace: ico('<path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/>'),
   help: ico('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>'),
-  logout: ico('<path d="M10 4H5v16h5"/><path d="M15 8l4 4-4 4M19 12H9"/>')
+  logout: ico('<path d="M10 4H5v16h5"/><path d="M15 8l4 4-4 4M19 12H9"/>'),
+  invite: ico('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.4 2.9-5.5 6.5-5.5s6.5 2.1 6.5 5.5"/><path d="M19 8v6M16 11h6"/>'),
+  demo: ico('<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>'),
+  play: ico('<circle cx="12" cy="12" r="9"/><path d="M10 8.5l5.5 3.5-5.5 3.5z" fill="currentColor"/>'),
+  practice: ico('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+  tour: ico('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'),
+  check: ico('<path d="M5 12.5l4.5 4.5L19 7.5"/>')
 };
+const TALLY_MARK = '<svg viewBox="0 7 48 35" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="11" x2="10.9" y2="38"/><line x1="19" y1="10" x2="18.3" y2="39.5"/><line x1="28" y1="12.5" x2="28.8" y2="37"/><line x1="37" y1="10" x2="36.8" y2="38.5"/><line x1="2.5" y1="37" x2="45.5" y2="12" stroke-width="3.2"/></svg>';
 function settingsRow(label, hint, ctrl, stack) {
   return `<div class="set-row${stack ? ' stack' : ''}"><div class="set-text"><strong>${esc(label)}</strong>${hint ? `<span class="muted">${esc(hint)}</span>` : ''}</div><div class="set-ctrl">${ctrl}</div></div>`;
+}
+// A whole tappable row: icon badge, title, hint and a chevron (no separate button that repeats the title)
+function settingsAction(icon, title, hint, act, tone) {
+  return `<button class="set-action${tone ? ' ' + tone : ''}" data-act="${act}"><span class="act-ico">${SET_ICO[icon]}</span><span class="act-text"><strong>${esc(title)}</strong>${hint ? `<span class="muted">${esc(hint)}</span>` : ''}</span><span class="act-go" aria-hidden="true">›</span></button>`;
 }
 function settingsView() {
   const t = I18N.t, owner = isOwner();
@@ -697,22 +708,22 @@ function settingsView() {
   if (sec === 'general') {
     const lang = I18N.lang(), size = I18N.textSize();
     body = `<div class="set-group">
-      ${settingsRow(t('settings.language'), t('set.lang.hint'), `<div class="set-tiles">${tile('set-lang', 'en', lang === 'en', 'English')}${tile('set-lang', 'fil', lang === 'fil', 'Filipino')}</div>`, true)}
+      ${settingsRow(t('settings.language'), t('set.lang.hint'), `<div class="set-tiles">${tile('set-lang', 'en', lang === 'en', 'English', '<span class="tile-badge">EN</span>')}${tile('set-lang', 'fil', lang === 'fil', 'Filipino', '<span class="tile-badge">FIL</span>')}</div>`, true)}
       ${settingsRow(t('settings.textSize'), t('set.size.hint'), `<div class="set-tiles">${tile('set-textsize', 'normal', size === 'normal', t('settings.size.normal'), '<span class="tile-aa">Aa</span>')}${tile('set-textsize', 'large', size === 'large', t('settings.size.large'), '<span class="tile-aa big">Aa</span>')}</div>`, true)}
     </div>`;
   } else if (sec === 'profile') {
     const initial = esc((me.name || '?').trim().charAt(0).toUpperCase());
     body = `<div class="set-card profile-card"><span class="avatar-lg">${initial}</span><div><strong class="pc-name">${esc(me.name || '')}</strong><span class="badge">${esc(role)}</span></div></div>
-    ${demoMode ? '' : `<div class="set-group">${settingsRow(t('settings.name'), t('set.name.hint'), `<div class="settings-row"><input class="in" id="set-name" aria-label="${esc(t('settings.name'))}" maxlength="80" autocomplete="name" value="${esc(me.name || '')}"><button class="btn" data-act="set-name">${esc(t('settings.name.save'))}</button></div><p class="muted settings-status" id="set-name-status" role="status"></p>`, true)}</div>`}
+    ${demoMode ? '' : `<div class="set-group">${settingsRow(t('settings.name'), t('set.name.hint'), `<div class="settings-row"><input class="in" id="set-name" aria-label="${esc(t('settings.name'))}" maxlength="80" autocomplete="name" value="${esc(me.name || '')}"><button class="btn-accent" data-act="set-name">${SET_ICO.check}<span>${esc(t('settings.name.save'))}</span></button></div><p class="muted settings-status" id="set-name-status" role="status"></p>`, true)}</div>`}
     <div class="set-group">${demoMode
-      ? settingsRow(t('menu.demoExit'), '', `<button class="btn" data-act="demo-exit">${esc(t('menu.demoExit'))}</button>`)
-      : settingsRow(t('menu.logout'), t('set.logout.hint'), `<button class="btn" data-act="logout">${esc(t('menu.logout'))}</button>`)}</div>`;
+      ? settingsAction('workspace', t('menu.demoExit'), '', 'demo-exit')
+      : settingsAction('logout', t('menu.logout'), t('set.logout.hint'), 'logout', 'danger')}</div>`;
   } else if (sec === 'workspace') {
-    body = `<div class="set-card org-card"><span class="muted set-kicker">${esc(t('settings.org'))}</span><strong class="org-name">${esc((organization && organization.name) || '')}</strong><span class="badge">${esc(role)}</span></div>
-    ${owner && !demoMode ? `<div class="set-group">${settingsRow(t('settings.invite'), t('set.invite.hint'), `<button class="btn" data-act="invite">${esc(t('settings.invite'))}</button>`)}${settingsRow(t('settings.demo'), t('set.demo.hint'), `<button class="btn" data-act="demo-data">${esc(t('settings.demo'))}</button>`)}</div>` : ''}`;
+    body = `<div class="set-card org-card"><span class="org-ico">${SET_ICO.workspace}</span><div class="org-text"><span class="muted set-kicker">${esc(t('settings.org'))}</span><strong class="org-name">${esc((organization && organization.name) || '')}</strong><span class="badge">${esc(role)}</span></div></div>
+    ${owner && !demoMode ? `<div class="set-group">${settingsAction('invite', t('settings.invite'), t('set.invite.hint'), 'invite')}${settingsAction('demo', t('settings.demo'), t('set.demo.hint'), 'demo-data')}</div>` : ''}`;
   } else {
-    body = `<div class="set-group">${settingsRow(t('settings.tutorial.replay'), t('set.tutorial.hint'), `<button class="btn" data-act="tutorial-start">${esc(t('settings.tutorial.replay'))}</button>`)}</div>
-    <div class="set-card about-card"><strong>Tally</strong><span class="muted">${esc(t('settings.about.text'))}</span></div>`;
+    body = `<div class="set-group">${settingsAction('play', t('settings.tutorial.replay'), t('set.tutorial.hint'), 'tutorial-start')}</div>
+    <div class="set-card about-card"><span class="about-logo">${TALLY_MARK}</span><div><strong>Tally</strong><span class="muted">${esc(t('settings.about.text'))}</span></div></div>`;
   }
   return `<div class="set-page"><button class="btn settings-back" data-act="settings-back">← ${esc(t('common.back'))}</button>
     <div class="set-head"><span class="set-head-ico">${SET_ICO[sec]}</span><div><p class="set-kicker muted">${esc(t('settings.title'))}</p><h1 class="page-title set-title">${esc(t('set.nav.' + sec))}</h1><p class="muted set-sub">${esc(t('set.sub.' + sec))}</p></div></div>
@@ -888,6 +899,7 @@ function render() {
     if (b.dataset.view === nextView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   renderSettingsNav();
+  if (window.TUTORIAL) TUTORIAL.event('render', {view: nextView, section: settingsSection, lang: I18N.lang(), size: I18N.textSize()}); // TUTORIAL
 }
 const $ = id => document.getElementById(id);
 showBusy('');
@@ -899,13 +911,17 @@ const WIZARD_STEPS = [
   {key: 'qty', get label() { return tr('wiz.qtyQ'); }, kind: 'quantity'}
 ];
 function wizardOptions(kind) {
+  if (wizard.practice && window.TUTORIAL && TUTORIAL.quickEntry()) {
+    return TUTORIAL.quickEntryValues(kind);
+  }
   if (kind !== 'item' || !wizard.values.client) return catalogValues(kind);
   const linked = new Set(entries.filter(e => e.client === wizard.values.client).map(e => e.item));
   const values = catalogValues(kind);
   return values.filter(v => linked.has(v));
 }
-function openDialog() {
-  wizard = {step: 0, values: {}, date: ymd(new Date()), other: false};
+function openDialog(practice) {
+  if (practice === undefined) practice = !!(window.TUTORIAL && TUTORIAL.interceptAdd()); // TUTORIAL
+  wizard = {step: 0, values: {}, date: ymd(new Date()), other: false, practice: !!practice};
   $('err').textContent = '';
   renderWizard();
   $('dlg').showModal();
@@ -919,12 +935,13 @@ function renderWizard() {
   const qty = s.kind === 'quantity' ? `<input class="in wizard-quantity" id="wizard-quantity" type="number" min="1" inputmode="numeric" placeholder="${tr('wiz.qty')}" value="${esc(selected || '')}" autofocus>` : '';
   $('wizard').innerHTML = `<button type="button" class="wizard-close" data-act="close-wizard" aria-label="${tr('wiz.close')}">&times;</button>
     <div class="wizard-progress"><span>${tr('wiz.step').replace('{n}', wizard.step + 1).replace('{total}', WIZARD_STEPS.length)}</span><span>${wizard.date === ymd(new Date()) ? tr('wiz.today') : wizard.date}</span></div>
-    <h2 class="wizard-title">${s.label}</h2><div class="choice-grid">${s.kind === 'quantity' ? qty : cards + other}</div>
+    ${wizard.practice ? `<p class="practice-note">${tr('tut.practiceNote')}</p>` : ''}<h2 class="wizard-title">${s.label}</h2><div class="choice-grid">${s.kind === 'quantity' ? qty : cards + other}</div>
     ${custom}<button class="textbtn date-toggle" data-act="wizard-date">${tr('wiz.usingToday')}</button>`;
   $('dlg').querySelector('[data-act="wizard-back"]').hidden = wizard.step === 0;
   const next = $('dlg').querySelector('[data-act="wizard-next"]');
   next.textContent = wizard.step === WIZARD_STEPS.length - 1 ? tr('wiz.save') : tr('common.continue');
   next.hidden = s.kind !== 'quantity' && !wizard.other;
+  if (window.TUTORIAL) TUTORIAL.event('wizard', {step: wizard.step, other: wizard.other, values: wizard.values}); // TUTORIAL
 }
 function wizardValue() {
   const s = WIZARD_STEPS[wizard.step];
@@ -941,6 +958,7 @@ function wizardNext() {
   wizard.values[s.key] = s.kind === 'quantity' ? Number(value) : value;
   wizard.other = false;
   if (wizard.step < WIZARD_STEPS.length - 1) { wizard.step++; renderWizard(); return; }
+  if (wizard.practice) { $('dlg').close(); if (window.TUTORIAL) TUTORIAL.event('practice-done'); return; } // TUTORIAL: practice never saves
   saveEntry();
 }
 function wizardBack() {
@@ -1092,7 +1110,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'set-lang') { I18N.setLang(d.v); }
   else if (d.act === 'set-textsize') { I18N.setTextSize(d.v); }
   else if (d.act === 'set-name') { saveSettingsName(); return; }
-  else if (d.act === 'tutorial-start') { if (window.TUTORIAL) TUTORIAL.start(isOwner() ? 'owner' : 'sewer'); return; } // TUTORIAL
+  else if (d.act === 'tutorial-start') { if (window.TUTORIAL) TUTORIAL.start('main'); return; } // TUTORIAL
   else if (d.act === 'week' || d.act === 'day') {
     const t = d.act, same = sel && sel.t === t && sel.d === d.d;
     sel = same ? null : {t, d: d.d};

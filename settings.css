@@ -49,6 +49,38 @@
 .org-name { font-size: 1.5rem; }
 .about-card { display: flex; flex-direction: column; gap: 4px; }
 
+/* Tappable action rows: icon badge + text + chevron */
+.set-action { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background .15s; }
+.set-action + .set-action { border-top: 1px solid var(--line); }
+.set-action:hover { background: var(--hl); }
+.set-action:active { background: color-mix(in srgb, var(--hl) 70%, var(--line)); }
+.act-ico { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent, var(--ink)) 14%, var(--surface)); color: var(--accent, var(--ink)); }
+.act-ico svg { width: 20px; height: 20px; }
+.act-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.act-text .muted { font-size: .85rem; }
+.act-go { flex: none; font-size: 1.5rem; line-height: 1; color: var(--muted); transition: transform .15s, color .15s; }
+.set-action:hover .act-go { transform: translateX(3px); color: var(--ink); }
+.set-action.danger .act-ico { background: color-mix(in srgb, #e5484d 15%, var(--surface)); color: #e5484d; }
+.set-action.danger strong { color: #e5484d; }
+
+/* Filled save button */
+.btn-accent { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--accent, var(--ink)); color: var(--accent-ink, var(--bg)); font: inherit; font-weight: 600; cursor: pointer; transition: transform .12s; }
+.btn-accent svg { width: 16px; height: 16px; }
+.btn-accent:active { transform: scale(.96); }
+
+/* Cards with a little character */
+.profile-card, .org-card, .about-card { background: linear-gradient(135deg, color-mix(in srgb, var(--accent, var(--ink)) 9%, var(--surface)), var(--surface) 70%); }
+.org-card { flex-direction: row; align-items: center; gap: 16px; }
+.org-text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.org-ico, .about-logo { flex: none; width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent, var(--ink)) 16%, var(--surface)); color: var(--accent, var(--ink)); }
+.org-ico svg { width: 28px; height: 28px; }
+.about-card { flex-direction: row; align-items: center; gap: 16px; }
+.about-logo svg { width: 32px; height: auto; }
+.about-card > div { display: flex; flex-direction: column; gap: 2px; }
+.avatar-lg { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent, var(--ink)) 25%, transparent); }
+.tile-badge { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--hl); font-size: .75rem; font-weight: 700; letter-spacing: .02em; }
+.set-tile.on .tile-badge { background: var(--accent, var(--ink)); color: var(--accent-ink, var(--bg)); }
+
 /* Sidebar (bottom bar on phones) while Settings is open: section list instead of the usual tabs */
 nav > .settings-nav { display: none; }
 .app.settings-mode nav > button[data-view] { display: none !important; }

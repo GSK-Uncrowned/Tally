@@ -1,5 +1,5 @@
 /* Tutorial overlay: dimmed screen, spotlight, speech bubble. See tutorial.js. */
-.tut { position: fixed; inset: 0; z-index: 300; }
+.tut { position: fixed; left: 0; top: 0; z-index: 300; }                    /* size and offset are set by tutorial.js */
 .tut-block { position: absolute; inset: 0; }                      /* swallows taps so the page behind can't be used */
 .tut-hole { position: absolute; pointer-events: none; box-shadow: 0 0 0 9999px rgba(8, 6, 12, .72); transition: left .25s ease, top .25s ease, width .25s ease, height .25s ease; }
 .tut-bubble { position: absolute; width: min(320px, calc(100vw - 24px)); box-sizing: border-box; padding: 16px; border-radius: 16px; background: var(--surface, #fff); color: var(--ink, #111); border: 1px solid var(--line, #ddd); box-shadow: 0 12px 40px rgba(0, 0, 0, .45); animation: tut-in .2s ease-out; }
@@ -9,9 +9,25 @@
 .tut-count { margin: 0 0 4px; font-size: .78rem; color: var(--muted, #777); }
 .tut-title { margin: 0 0 6px; font-size: 1.1rem; }
 .tut-text { margin: 0; line-height: 1.45; font-size: .95rem; }
+.tut-pointer { position: absolute; z-index: 2; width: 32px; height: 40px; color: var(--accent, #ff7a00); pointer-events: none; animation: tut-point .8s ease-in-out infinite alternate; filter: drop-shadow(0 3px 4px rgba(0,0,0,.4)); }
+.tut-pointer svg { display: block; width: 100%; height: 100%; }
 .tut-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 14px; }
 .tut-skip { background: none; border: 0; padding: 8px 4px; color: var(--muted, #777); font: inherit; cursor: pointer; }
 .tut-next { border: 0; border-radius: 12px; padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer; background: var(--accent, var(--ink, #111)); color: var(--accent-ink, var(--bg, #fff)); }
 .tut-next:focus-visible, .tut-skip:focus-visible { outline: 2px solid var(--accent, var(--ink, #111)); outline-offset: 2px; }
 @keyframes tut-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .tut-bubble { animation: none; } .tut-hole { transition: none; } }
+
+.tut-block.dim { background: rgba(8, 6, 12, .72); }
+.tut-mask { position: absolute; display: none; }                    /* four panels around the spotlight on hands-on steps */
+.tut-next.ghost { background: none; color: var(--muted, #777); border: 1px solid var(--line, #ddd); font-weight: 500; }
+.tut-bubble.center .tut-arrow { display: none; }
+.practice-note { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--hl, #eee); color: var(--muted, #777); font-size: .8rem; }
+
+/* The container itself never catches taps; only the dim panels and the bubble do, so the spotlight stays tappable */
+.tut { pointer-events: none; }
+.tut-block, .tut-mask, .tut-bubble { pointer-events: auto; }
+.tut-hole { pointer-events: none; }
+@keyframes tut-point { from { transform: translateY(-4px); } to { transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) { .tut-pointer { animation: none; } }
+html[lang="fil"] .tut-text { font-size: .88rem; }
