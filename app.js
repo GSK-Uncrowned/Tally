@@ -675,27 +675,66 @@ function setupView() {
       ${rateRows.length ? rateRows.map(r => `<div class="rate-card"><div><strong>${esc(r.supplier)}</strong><div class="muted">${esc(r.item)} · ${esc(r.size)}</div></div><div class="r"><strong>${peso(r.price)}</strong><div class="muted">${tr('rate.payShort')} ${peso(r.pay)}</div></div><button class="btn" data-act="rate-edit" data-supplier="${esc(r.supplier)}" data-item="${esc(r.item)}" data-size="${esc(r.size)}">${tr('common.edit')}</button></div>`).join('') : '<p class="empty">' + tr('setup.noRates') + '</p>'}
     </section>${cards('item', tr('setup.items'))}${cards('size', tr('setup.sizes'))}${cards('color', tr('setup.colors'))}${cards('supplier', tr('setup.suppliers'))}`;
 }
-let settingsFrom = 'log';
-function settingsView() {
-  const t = I18N.t, lang = I18N.lang(), size = I18N.textSize(), owner = isOwner();
-  const seg = (act, cur, opts, label) => `<div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, text]) => `<button class="btn${cur === v ? ' on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${esc(text)}</button>`).join('')}</div>`;
-  return `<button class="btn settings-back" data-act="settings-back">← ${esc(t('common.back'))}</button>
-  <h1 class="page-title">${esc(t('settings.title'))}</h1>
-  <section class="settings-card"><h2>${esc(t('settings.language'))}</h2>${seg('set-lang', lang, [['en', 'English'], ['fil', 'Filipino']], t('settings.language'))}</section>
-  <section class="settings-card"><h2>${esc(t('settings.textSize'))}</h2>${seg('set-textsize', size, [['normal', t('settings.size.normal')], ['large', t('settings.size.large')]], t('settings.textSize'))}</section>
-  ${demoMode ? '' : `<section class="settings-card"><h2>${esc(t('settings.name'))}</h2>
-    <div class="settings-row"><input class="in" id="set-name" aria-label="${esc(t('settings.name'))}" maxlength="80" autocomplete="name" value="${esc(me.name || '')}"><button class="btn" data-act="set-name">${esc(t('settings.name.save'))}</button></div>
-    <p class="muted settings-status" id="set-name-status" role="status"></p></section>`}
-  <section class="settings-card"><h2>${esc(t('settings.tutorial'))}</h2>
-    <div class="settings-row"><button class="btn" data-act="tutorial-start">${esc(t('settings.tutorial.replay'))}</button></div></section>
-  <section class="settings-card"><h2>${esc(t('settings.workspace'))}</h2>
-    <div class="settings-meta"><span class="muted">${esc(t('settings.org'))}</span><strong>${esc((organization && organization.name) || '')}</strong></div>
-    <div class="settings-meta"><span class="muted">${esc(t('settings.role'))}</span><strong>${esc(owner ? t('role.owner') : t('role.sewer'))}</strong></div>
-    ${owner && !demoMode ? `<div class="settings-actions"><button class="btn" data-act="invite">${esc(t('settings.invite'))}</button><button class="btn" data-act="demo-data">${esc(t('settings.demo'))}</button></div>` : ''}
-  </section>
-  <section class="settings-card"><h2>${esc(t('settings.about'))}</h2><p class="muted" style="margin:0">${esc(t('settings.about.text'))}</p></section>
-  <div class="settings-actions">${demoMode ? `<button class="btn" data-act="demo-exit">${esc(t('menu.demoExit'))}</button>` : `<button class="btn" data-act="logout">${esc(t('menu.logout'))}</button>`}</div>`;
+let settingsFrom = 'log', settingsSection = 'general';
+const SETTINGS_SECTIONS = ['general', 'profile', 'workspace', 'help'];
+const ico = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const SET_ICO = {
+  general: ico('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+  profile: ico('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>'),
+  workspace: ico('<path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/>'),
+  help: ico('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>'),
+  logout: ico('<path d="M10 4H5v16h5"/><path d="M15 8l4 4-4 4M19 12H9"/>')
+};
+function settingsRow(label, hint, ctrl, stack) {
+  return `<div class="set-row${stack ? ' stack' : ''}"><div class="set-text"><strong>${esc(label)}</strong>${hint ? `<span class="muted">${esc(hint)}</span>` : ''}</div><div class="set-ctrl">${ctrl}</div></div>`;
 }
+function settingsView() {
+  const t = I18N.t, owner = isOwner();
+  if (!SETTINGS_SECTIONS.includes(settingsSection)) settingsSection = 'general';
+  const sec = settingsSection, role = owner ? t('role.owner') : t('role.sewer');
+  const tile = (act, v, on, main, extra) => `<button class="set-tile${on ? ' on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${on}">${extra || ''}<span class="tile-main">${esc(main)}</span><span class="tile-check" aria-hidden="true">✓</span></button>`;
+  let body = '';
+  if (sec === 'general') {
+    const lang = I18N.lang(), size = I18N.textSize();
+    body = `<div class="set-group">
+      ${settingsRow(t('settings.language'), t('set.lang.hint'), `<div class="set-tiles">${tile('set-lang', 'en', lang === 'en', 'English')}${tile('set-lang', 'fil', lang === 'fil', 'Filipino')}</div>`, true)}
+      ${settingsRow(t('settings.textSize'), t('set.size.hint'), `<div class="set-tiles">${tile('set-textsize', 'normal', size === 'normal', t('settings.size.normal'), '<span class="tile-aa">Aa</span>')}${tile('set-textsize', 'large', size === 'large', t('settings.size.large'), '<span class="tile-aa big">Aa</span>')}</div>`, true)}
+    </div>`;
+  } else if (sec === 'profile') {
+    const initial = esc((me.name || '?').trim().charAt(0).toUpperCase());
+    body = `<div class="set-card profile-card"><span class="avatar-lg">${initial}</span><div><strong class="pc-name">${esc(me.name || '')}</strong><span class="badge">${esc(role)}</span></div></div>
+    ${demoMode ? '' : `<div class="set-group">${settingsRow(t('settings.name'), t('set.name.hint'), `<div class="settings-row"><input class="in" id="set-name" aria-label="${esc(t('settings.name'))}" maxlength="80" autocomplete="name" value="${esc(me.name || '')}"><button class="btn" data-act="set-name">${esc(t('settings.name.save'))}</button></div><p class="muted settings-status" id="set-name-status" role="status"></p>`, true)}</div>`}
+    <div class="set-group">${demoMode
+      ? settingsRow(t('menu.demoExit'), '', `<button class="btn" data-act="demo-exit">${esc(t('menu.demoExit'))}</button>`)
+      : settingsRow(t('menu.logout'), t('set.logout.hint'), `<button class="btn" data-act="logout">${esc(t('menu.logout'))}</button>`)}</div>`;
+  } else if (sec === 'workspace') {
+    body = `<div class="set-card org-card"><span class="muted set-kicker">${esc(t('settings.org'))}</span><strong class="org-name">${esc((organization && organization.name) || '')}</strong><span class="badge">${esc(role)}</span></div>
+    ${owner && !demoMode ? `<div class="set-group">${settingsRow(t('settings.invite'), t('set.invite.hint'), `<button class="btn" data-act="invite">${esc(t('settings.invite'))}</button>`)}${settingsRow(t('settings.demo'), t('set.demo.hint'), `<button class="btn" data-act="demo-data">${esc(t('settings.demo'))}</button>`)}</div>` : ''}`;
+  } else {
+    body = `<div class="set-group">${settingsRow(t('settings.tutorial.replay'), t('set.tutorial.hint'), `<button class="btn" data-act="tutorial-start">${esc(t('settings.tutorial.replay'))}</button>`)}</div>
+    <div class="set-card about-card"><strong>Tally</strong><span class="muted">${esc(t('settings.about.text'))}</span></div>`;
+  }
+  return `<div class="set-page"><button class="btn settings-back" data-act="settings-back">← ${esc(t('common.back'))}</button>
+    <div class="set-head"><span class="set-head-ico">${SET_ICO[sec]}</span><div><p class="set-kicker muted">${esc(t('settings.title'))}</p><h1 class="page-title set-title">${esc(t('set.nav.' + sec))}</h1><p class="muted set-sub">${esc(t('set.sub.' + sec))}</p></div></div>
+    ${body}</div>`;
+}
+// While Settings is open the sidebar (bottom bar on phones) lists the Settings sections, and the Tally logo is the exit.
+function renderSettingsNav() {
+  const app = document.querySelector('.app'), nav = document.querySelector('nav');
+  if (!app || !nav) return;
+  const on = view === 'settings';
+  app.classList.toggle('settings-mode', on);
+  const brand = nav.querySelector('.brand');
+  if (brand) { ['role', 'tabindex', 'aria-label'].forEach(a => brand.removeAttribute(a)); delete brand.dataset.back; }
+  let g = nav.querySelector('.settings-nav');
+  if (!g) { g = document.createElement('div'); g.className = 'settings-nav'; nav.appendChild(g); }
+  if (!on) { g.innerHTML = ''; return; }
+  g.innerHTML = SETTINGS_SECTIONS.map(k => `<button data-act="settings-section" data-v="${k}"${settingsSection === k ? ' aria-current="page"' : ''}>${SET_ICO[k]}<span>${esc(tr('set.nav.' + k))}</span></button>`).join('')
+    + (demoMode ? '' : `<button class="settings-logout" data-act="logout">${SET_ICO.logout}<span>${esc(tr('menu.logout'))}</span></button>`);
+}
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches && e.target.matches('nav .brand[role="button"]')) { e.preventDefault(); e.target.click(); }
+});
 async function saveSettingsName() {
   const t = I18N.t, input = $('set-name'), status = $('set-name-status');
   if (!input || !status) return;
@@ -848,6 +887,7 @@ function render() {
     b.hidden = (ownerOnly && !isOwner()) || (sewerOnly && !isSewer());
     if (b.dataset.view === nextView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
+  renderSettingsNav();
 }
 const $ = id => document.getElementById(id);
 showBusy('');
@@ -1046,7 +1086,9 @@ document.addEventListener('click', ev => {
   else if (d.act === 'auth-mode') { setAuthMode(authMode === 'login' ? 'signup' : 'login'); return; }
   else if (d.act === 'logout') { logout(); return; }
   else if (d.act === 'settings-back') { view = settingsFrom || 'log'; sel = null; swSel = null; spSel = null; pendingDel = null; }
-  else if (d.act === 'settings') { if (view !== 'settings') settingsFrom = view; view = 'settings'; sel = null; swSel = null; spSel = null; pendingDel = null; }
+  else if (d.act === 'settings-section') { settingsSection = d.v; }
+  else if (d.act === 'brand') { if (view !== 'settings') return; view = settingsFrom || 'log'; sel = null; swSel = null; spSel = null; pendingDel = null; }
+  else if (d.act === 'settings') { if (view !== 'settings') settingsFrom = view; view = 'settings'; settingsSection = 'general'; sel = null; swSel = null; spSel = null; pendingDel = null; }
   else if (d.act === 'set-lang') { I18N.setLang(d.v); }
   else if (d.act === 'set-textsize') { I18N.setTextSize(d.v); }
   else if (d.act === 'set-name') { saveSettingsName(); return; }

@@ -9,17 +9,66 @@
 .lang-btn:hover, .lang-btn:focus-visible { border-color: var(--ink); }
 
 /* Settings page */
-.settings-card { border: 1px solid var(--line); border-radius: 15px; padding: 16px; margin: 14px 0; background: var(--surface); }
-.settings-card h2 { margin: 0 0 10px; font-size: 1.05rem; }
-.settings-card .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.set-page { max-width: 720px; margin: 0 auto; }
+.settings-back { position: relative; z-index: 40; margin: 8px 0 28px; }
+.set-head { display: flex; align-items: center; gap: 16px; margin: 4px 0 22px; }
+.set-head-ico { flex: none; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--hl); color: var(--accent, var(--ink)); }
+.set-head-ico svg { width: 26px; height: 26px; }
+.set-kicker { margin: 0; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.set-title { margin: 0; line-height: 1.1; }
+.set-sub { margin: 4px 0 0; }
+
+.set-group { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); margin: 0 0 16px; overflow: hidden; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; }
+.set-row + .set-row { border-top: 1px solid var(--line); }
+.set-row.stack { flex-direction: column; align-items: stretch; }
+.set-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-text .muted { font-size: .85rem; }
+.set-ctrl { flex: none; max-width: 100%; }
+.set-row.stack .set-ctrl { flex: 1; }
 .settings-row { display: flex; gap: 8px; align-items: center; }
 .settings-row .in { flex: 1; min-width: 0; }
-.settings-meta { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
-.settings-status { min-height: 1.3em; margin: 8px 0 0; }
-.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.settings-status { margin: 8px 0 0; }
+.settings-status:empty { display: none; }
+
+.set-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.set-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 16px 10px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
+.set-tile:hover { border-color: var(--muted); }
+.set-tile.on { border-color: var(--accent, var(--ink)); background: color-mix(in srgb, var(--accent, var(--ink)) 10%, var(--surface)); }
+.tile-check { position: absolute; top: 8px; right: 10px; opacity: 0; font-size: .85rem; color: var(--accent, var(--ink)); }
+.set-tile.on .tile-check { opacity: 1; }
+.tile-aa { font-size: 1.15rem; font-weight: 700; }
+.tile-aa.big { font-size: 1.7rem; }
+
+.set-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); padding: 18px; margin: 0 0 16px; }
+.profile-card { display: flex; align-items: center; gap: 16px; }
+.avatar-lg { flex: none; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-size: 1.5rem; font-weight: 700; }
+.pc-name { display: block; margin-bottom: 4px; font-size: 1.2rem; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 99px; background: var(--hl); color: var(--ink); font-size: .75rem; font-weight: 600; }
+.org-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.org-name { font-size: 1.5rem; }
+.about-card { display: flex; flex-direction: column; gap: 4px; }
+
+/* Sidebar (bottom bar on phones) while Settings is open: section list instead of the usual tabs */
+nav > .settings-nav { display: none; }
+.app.settings-mode nav > button[data-view] { display: none !important; }
+.app.settings-mode nav > .settings-nav { display: contents; }
+.settings-nav button { display: flex; align-items: center; gap: 9px; padding-left: 12px; padding-right: 8px; font-size: .88rem; white-space: nowrap; }
+.settings-nav button svg { width: 18px; height: 18px; flex: none; }
+.settings-nav .settings-logout { margin-top: auto; }
+
+@media (max-width: 799px) {
+  .settings-nav button { flex-direction: column; justify-content: center; gap: 3px; padding: 8px 2px; font-size: .68rem; line-height: 1.1; }
+  .settings-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .settings-nav .settings-logout { display: none; }
+  .set-row { flex-wrap: wrap; }
+  .set-head-ico { width: 44px; height: 44px; }
+}
+
+@media (min-width: 800px) {
+  .app.settings-mode .workspace { margin-left: 0; }
+}
 
 /* Text size: scales rem-based sizes and the body text */
 html[data-textsize="large"] { font-size: 112.5%; }
 html[data-textsize="large"] body { font-size: 18px; }
-
-.settings-back { margin: 4px 0 10px; }
