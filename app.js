@@ -151,9 +151,9 @@ function weekNav(act, s) {
 function monthNav() {
   const current = new Date();
   const isCurrentMonth = month.getFullYear() === current.getFullYear() && month.getMonth() === current.getMonth();
-  return `<div class="weekbar"><button class="wk-arr" data-act="mshift" data-d="-1" aria-label="Previous month">‹</button>
+  return `<div class="weekbar"><button class="wk-arr" data-act="mshift" data-d="-1" aria-label="${tr('aria.prevMonth')}">‹</button>
     <div class="wl">${month.toLocaleDateString(loc(), {month:'long', year:'numeric'})}</div>
-    <button class="wk-arr" data-act="mshift" data-d="1" aria-label="Next month" ${isCurrentMonth ? 'disabled' : ''}>›</button></div>`;
+    <button class="wk-arr" data-act="mshift" data-d="1" aria-label="${tr('aria.nextMonth')}" ${isCurrentMonth ? 'disabled' : ''}>›</button></div>`;
 }
 function catalogValues(kind) {
   const values = new Set(catalog[kind] || []);
@@ -314,7 +314,7 @@ function mySalaryView() {
         <div class="r"><strong>${peso(e.qty * e.pay)}</strong><div class="muted">${e.qty.toLocaleString()} ${tr('unit.pcs')} × ${peso(e.pay)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
   const p = periods[a], st = p && (p.statements || []).find(x => x.sewer_id === me.id);
-  const foot = st ? `<button class="fin-btn" data-act="slip" data-self="1">${DLI}Download payslip</button>`
+  const foot = st ? `<button class="fin-btn" data-act="slip" data-self="1">${DLI}${tr('btn.dlSlip')}</button>`
     : p ? '' : '<p class="muted fin-note">' + tr('fin.inProgressMine') + '</p>';
   const bar = foot ? '<div class="fin-bar">' + foot + '</div>' : '';
   return `<h1 class="page-title">${tr('view.mySalary')}</h1>${weekNav('sw', s)}
@@ -332,7 +332,7 @@ function myFinanceView() {
   let monthTotal = 0;
   for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
     const wk = ymd(ws), wsel = sel && sel.t === 'week' && sel.d === wk;
-    cells += `<button class="wbtn ${wsel ? 'on' : ''}" data-act="week" data-d="${wk}" title="See this week" aria-label="Week of ${short(ws)}">${CHEV}</button>`;
+    cells += `<button class="wbtn ${wsel ? 'on' : ''}" data-act="week" data-d="${wk}" title="${tr('aria.seeWeek')}" aria-label="${tr('fin.weekOf')} ${short(ws)}">${CHEV}</button>`;
     for (let i = 0; i < 7; i++) {
       const dt = addDays(ws, i), key = ymd(dt);
       if (dt.getMonth() !== m) { cells += '<div class="cell off"></div>'; continue; }
@@ -411,7 +411,7 @@ function financeView() {
   const first = new Date(y, m, 1), last = new Date(y, m, days);
   for (let ws = weekStart(first); ws <= last; ws = addDays(ws, 7)) {
     const wk = ymd(ws), wsel = sel && sel.t === 'week' && sel.d === wk;
-    cells += `<button class="wbtn ${wsel ? 'on' : ''}" data-act="week" data-d="${wk}" title="See this week" aria-label="Week of ${short(ws)}">${CHEV}</button>`;
+    cells += `<button class="wbtn ${wsel ? 'on' : ''}" data-act="week" data-d="${wk}" title="${tr('aria.seeWeek')}" aria-label="${tr('fin.weekOf')} ${short(ws)}">${CHEV}</button>`;
     for (let i = 0; i < 7; i++) {
       const dt = addDays(ws, i), key = ymd(dt);
       if (dt.getMonth() !== m) { cells += '<div class="cell off"></div>'; continue; }
@@ -444,7 +444,7 @@ function sewersView() {
   const total = n => by[n].reduce((t, x) => t + x.qty * x.pay, 0), pcs = n => by[n].reduce((t, x) => t + x.qty, 0);
   const grand = names.reduce((t, n) => t + total(n), 0);
   let bar = '';
-  if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}Download all (detailed)</button><button class="fin-btn ghost" data-act="reopen-open">${tr('fin.reopenWeek')}</button><p class="muted fin-note">${tr('fin.entriesLocked')}</p>`;
+  if (p) bar = `<button class="fin-btn" data-act="sum">${DLI}${tr('btn.dlAll')}</button><button class="fin-btn ghost" data-act="reopen-open">${tr('fin.reopenWeek')}</button><p class="muted fin-note">${tr('fin.entriesLocked')}</p>`;
   else if (names.length) bar = `<button class="fin-btn" data-act="fin-open">${tr('fin.finalizeWeek')}</button>`;
   return `<h1 class="page-title">${tr('nav.salary')}</h1>${weekNav('sw', s)}
     <div class="tot-l">${tr('tot.sewerPay')}</div><div class="tot-v">${peso(grand)}</div>
@@ -465,13 +465,13 @@ function openReceipt(kind, n) {
         l.map(x => `<div class="slog"><div><div>${esc(x.item)}</div><div class="muted">${esc(x.color)}, ${esc(x.size)}, ${dayLabel(x.date)}</div></div>
           <div class="r"><strong>${peso(x.qty * x.pay)}</strong><div class="muted">${x.qty} ${tr('unit.pcs')} × ${peso(x.pay)}</div></div></div>`).join('') + '</div></div>';
     }).join('');
-    foot = periods[a] ? `<button class="fin-btn" data-act="slip" data-n="${esc(n)}">${DLI}Download payslip</button>`
+    foot = periods[a] ? `<button class="fin-btn" data-act="slip" data-n="${esc(n)}">${DLI}${tr('btn.dlSlip')}</button>`
       : '<p class="muted fin-note">' + tr('fin.notFinalSlip') + '</p>';
   } else {
     rows = entries.filter(x => x.date >= a && x.date <= b && x.client === n);
     total = rows.reduce((t, x) => t + cmp(x), 0);
     body = sewerTree(rows);
-    foot = periods[a] ? `<button class="fin-btn" data-act="sup-slip" data-n="${esc(n)}">${DLI}Download statement</button>`
+    foot = periods[a] ? `<button class="fin-btn" data-act="sup-slip" data-n="${esc(n)}">${DLI}${tr('btn.dlStmt')}</button>`
       : '<p class="muted fin-note">' + tr('fin.notFinalStmt') + '</p>';
   }
   const pieces = rows.reduce((t, x) => t + x.qty, 0);
@@ -570,7 +570,7 @@ async function drawSheet(o) {
     y += 24;
   });
   y += 30; x.fillStyle = '#111'; x.fillRect(P, y, Wd - 2 * P, 3); y += 60;
-  x.font = F('600 30px'); x.fillText(o.totalLabel || 'Total pay', P, y);
+  x.font = F('600 30px'); x.fillText(o.totalLabel || tr('fin.totalPay'), P, y);
   x.textAlign = 'right'; x.font = F('700 46px'); x.fillText(o.total, Wd - P, y); x.textAlign = 'left';
   y += 70; x.fillStyle = '#6b6b6b'; x.font = F('400 22px'); x.fillText(o.foot, P, y);
   return c;
@@ -587,8 +587,8 @@ async function downloadSlip(d) {
   const key = ymd(swWeek), p = periods[key];
   const st = p && (p.statements || []).find(x => d.self ? x.sewer_id === me.id : x.sewer_name === d.n);
   if (!st) { alert(tr('err.noSlip')); return; }
-  const c = await drawSheet({title: 'Payslip', name: st.sewer_name, sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
-    sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: 'Finalized ' + finDate(p)});
+  const c = await drawSheet({title: tr('sheet.payslip'), name: st.sewer_name, sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: tr('sheet.finalizedOn') + finDate(p)});
   saveCanvas(c, `Tally-payslip-${st.sewer_name.replace(/\s+/g, '-')}-${key}.png`);
 }
 async function downloadSupplierSlip(d) {
@@ -609,16 +609,16 @@ async function downloadSupplierSlip(d) {
     b: [r.color, r.size].filter(v => v && v !== 'Any').join(', ') + (r.color === 'Any' && r.size === 'Any' ? '' : ' · ') + r.qty.toLocaleString() + ' × ' + peso(r.price),
     c: peso(r.qty * r.price)}))}];
   const total = rows.reduce((t, x) => t + cmp(x), 0), pieces = rows.reduce((t, x) => t + x.qty, 0);
-  const c = await drawSheet({title: 'Statement', name: d.n, sub: weekText(spWeek) + ', ' + addDays(spWeek, 6).getFullYear() + ' · ' + pieces.toLocaleString() + ' ' + tr('unit.pieces'),
-    sections: [{head: null, groups}], totalLabel: 'Total', total: peso(total), foot: 'Finalized ' + finDate(p)});
+  const c = await drawSheet({title: tr('sheet.statement'), name: d.n, sub: weekText(spWeek) + ', ' + addDays(spWeek, 6).getFullYear() + ' · ' + pieces.toLocaleString() + ' ' + tr('unit.pieces'),
+    sections: [{head: null, groups}], totalLabel: tr('fin.total'), total: peso(total), foot: tr('sheet.finalizedOn') + finDate(p)});
   saveCanvas(c, `Tally-statement-${d.n.replace(/\s+/g, '-')}-${key}.png`);
 }
 async function downloadSummary() {
   const key = ymd(swWeek), p = periods[key];
   if (!p) return;
   const sts = (p.statements || []).slice().sort((x, y) => textCmp(x.sewer_name, y.sewer_name));
-  const c = await drawSheet({title: 'Weekly salary report', name: (organization && organization.name) || 'All sewers', sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
-    sections: sts.map(st => statementSection(st, true)), totalLabel: 'Total sewer pay', total: peso(sts.reduce((t, st) => t + Number(st.total), 0)), foot: 'Finalized ' + finDate(p)});
+  const c = await drawSheet({title: tr('sheet.weeklyReport'), name: (organization && organization.name) || tr('sheet.allSewers'), sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: sts.map(st => statementSection(st, true)), totalLabel: tr('tot.sewerPay'), total: peso(sts.reduce((t, st) => t + Number(st.total), 0)), foot: tr('sheet.finalizedOn') + finDate(p)});
   saveCanvas(c, `Tally-salary-report-${key}.png`);
 }
 
@@ -637,7 +637,7 @@ function sewerTree(list) {
     });
     const l = Object.values(rows).sort((a, b) => textCmp(a.item, b.item) || textCmp(a.color, b.color) || sizeRank(a.size) - sizeRank(b.size));
     const total = l.reduce((t, r) => t + r.qty * r.price, 0);
-    return `<div class="grp sm"><div class="sup-head"><strong>${esc(n || 'No sewer')}</strong><span>${peso(total)}</span></div><div class="kids">` +
+    return `<div class="grp sm"><div class="sup-head"><strong>${esc(n || tr('sal.noSewerName'))}</strong><span>${peso(total)}</span></div><div class="kids">` +
       l.map(r => `<div class="slog"><div><div>${esc(r.item)}</div><div class="muted">${esc(r.color)}, ${esc(r.size)}</div></div>
         <div class="r"><strong>${peso(r.qty * r.price)}</strong><div class="muted">${r.qty.toLocaleString()} × ${peso(r.price)}</div></div></div>`).join('') + '</div></div>';
   }).join('');
@@ -687,7 +687,7 @@ function settingsView() {
     <div class="settings-row"><input class="in" id="set-name" aria-label="${esc(t('settings.name'))}" maxlength="80" autocomplete="name" value="${esc(me.name || '')}"><button class="btn" data-act="set-name">${esc(t('settings.name.save'))}</button></div>
     <p class="muted settings-status" id="set-name-status" role="status"></p></section>`}
   <section class="settings-card"><h2>${esc(t('settings.tutorial'))}</h2>
-    <div class="settings-row"><button class="btn" disabled>${esc(t('settings.tutorial.replay'))}</button><span class="muted">${esc(t('settings.tutorial.soon'))}</span></div></section>
+    <div class="settings-row"><button class="btn" data-act="tutorial-start">${esc(t('settings.tutorial.replay'))}</button></div></section>
   <section class="settings-card"><h2>${esc(t('settings.workspace'))}</h2>
     <div class="settings-meta"><span class="muted">${esc(t('settings.org'))}</span><strong>${esc((organization && organization.name) || '')}</strong></div>
     <div class="settings-meta"><span class="muted">${esc(t('settings.role'))}</span><strong>${esc(owner ? t('role.owner') : t('role.sewer'))}</strong></div>
@@ -724,7 +724,7 @@ function renderTopbar() {
   topbar.hidden = false;
   const t = I18N.t;
   const realtimeLive = realtimeState === 'SUBSCRIBED';
-  topbar.innerHTML = `<span class="live-status ${demoMode ? 'demo-status' : (realtimeLive ? 'live' : '')}" role="status" title="${demoMode ? 'Demo data is isolated from your workspace' : (realtimeLive ? 'Realtime updates are connected' : 'Realtime updates are reconnecting')}">
+  topbar.innerHTML = `<span class="live-status ${demoMode ? 'demo-status' : (realtimeLive ? 'live' : '')}" role="status" title="${demoMode ? tr('status.demo') : (realtimeLive ? tr('status.live') : tr('status.reconnecting'))}">
       <span class="live-dot" aria-hidden="true"></span><span class="live-label">${demoMode ? 'Demo' : (cloud ? (realtimeLive ? 'Live' : 'Syncing') : 'Local')}</span>
     </span><details class="profile-menu">
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
@@ -929,7 +929,7 @@ async function saveEntry() {
       client: v.client || 'Unknown', sewer: demoMode ? me.name : (remote() ? me.name : ''), qty: Number(v.qty)};
     const r = currentRate(e);
     e.price = r.price; e.pay = r.pay;
-    if (isLocked(e.date)) { $('err').textContent = 'That week is finalized. Ask the owner to reopen it, or pick a date in an open week.'; return; }
+    if (isLocked(e.date)) { $('err').textContent = tr('err.weekFinal'); return; }
 
     if (!remote()) {
       e.id = Date.now(); entries.push(e);
@@ -1050,6 +1050,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'set-lang') { I18N.setLang(d.v); }
   else if (d.act === 'set-textsize') { I18N.setTextSize(d.v); }
   else if (d.act === 'set-name') { saveSettingsName(); return; }
+  else if (d.act === 'tutorial-start') { if (window.TUTORIAL) TUTORIAL.start(isOwner() ? 'owner' : 'sewer'); return; } // TUTORIAL
   else if (d.act === 'week' || d.act === 'day') {
     const t = d.act, same = sel && sel.t === t && sel.d === d.d;
     sel = same ? null : {t, d: d.d};
@@ -1101,7 +1102,7 @@ function addRateFlow() {
   if (!supplier || !supplier.trim()) return;
   const item = prompt(tr('prompt.item'));
   if (!item || !item.trim()) return;
-  const size = prompt('Size:');
+  const size = prompt(tr('prompt.size'));
   if (!size || !size.trim()) return;
   openRateDialog(supplier.trim(), item.trim(), size.trim());
 }
@@ -1164,17 +1165,17 @@ function showOnboarding() {
 }
 // First step for every new account: confirm the name teammates will see (Google names are not always real names)
 function showNameStep() {
-  $('onboarding-title').textContent = 'What’s your name?';
+  $('onboarding-title').textContent = tr('onb.nameQ');
   document.querySelector('.onboarding-panel').classList.add('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-form">
-    <input class="in" id="profile-name-in" aria-label="Your name" placeholder="Name" autocomplete="name" maxlength="80" value="${esc(me.name || '')}">
-    <button class="primary" data-act="name-submit">Continue</button>
+    <input class="in" id="profile-name-in" aria-label="${tr('auth.name')}" placeholder="${tr('onb.nameLabel')}" autocomplete="name" maxlength="80" value="${esc(me.name || '')}">
+    <button class="primary" data-act="name-submit">${tr('common.continue')}</button>
   </div>`;
   $('profile-name-in').focus();
 }
 async function saveName() {
   const input = $('profile-name-in'), name = input.value.trim().replace(/\s+/g, ' ');
-  if (name.length < 2) { input.classList.add('invalid'); $('onboarding-status').textContent = 'Please enter your name.'; return; }
+  if (name.length < 2) { input.classList.add('invalid'); $('onboarding-status').textContent = tr('settings.name.short'); return; }
   input.classList.remove('invalid');
   $('onboarding-status').textContent = '';
   if (name !== me.name) {
@@ -1183,7 +1184,7 @@ async function saveName() {
     if (!r.error && r.data && r.data.length) ok = true;
     else {
       const f = await sb.rpc('set_profile_name', {new_name: name});
-      if (!f.error) ok = true; else $('onboarding-status').textContent = 'Could not save your name: ' + f.error.message;
+      if (!f.error) ok = true; else $('onboarding-status').textContent = tr('settings.name.fail') + f.error.message;
     }
     if (!ok) return;
     me.name = name;
@@ -1192,11 +1193,11 @@ async function saveName() {
   showOnboardingChoices();
 }
 function showOnboardingChoices() {
-  $('onboarding-title').textContent = 'Set up your workspace';
+  $('onboarding-title').textContent = tr('onb.title');
   document.querySelector('.onboarding-panel').classList.remove('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-actions">
-    <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>Create an organization</strong></span><span class="onboarding-arrow">→</span></button>
-    <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>Join an organization</strong></span><span class="onboarding-arrow">→</span></button>
+    <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>${tr('onb.create')}</strong></span><span class="onboarding-arrow">→</span></button>
+    <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>${tr('onb.join')}</strong></span><span class="onboarding-arrow">→</span></button>
   </div>`;
   if (pendingInvite) showJoinOrganization();
 }
@@ -1206,8 +1207,8 @@ function hideOnboarding() {
   const x = panel.querySelector('.onboarding-close');
   panel.classList.remove('invite-mode', 'name-mode');
   x.dataset.act = 'onboarding-exit';
-  x.setAttribute('aria-label', 'Exit organization setup');
-  $('onboarding-title').textContent = 'Set up your workspace';
+  x.setAttribute('aria-label', tr('onb.exit'));
+  $('onboarding-title').textContent = tr('onb.title');
 }
 async function exitOnboarding() {
   if (cloud) await sb.auth.signOut();
@@ -1222,21 +1223,21 @@ async function exitOnboarding() {
 }
 function showCreateOrganization() {
   $('onboarding-content').innerHTML = `<div class="onboarding-form">
-    <label class="required" for="organization-name">Organization name</label>
-    <input class="in" id="organization-name" placeholder="e.g. Maria's Sewing Shop" maxlength="120" autofocus>
-    <button class="primary" data-act="create-submit">Create organization</button>
-    <button class="textbtn" data-act="onboarding-back">Back</button>
+    <label class="required" for="organization-name">${tr('onb.orgName')}</label>
+    <input class="in" id="organization-name" placeholder="${tr('onb.orgPh')}" maxlength="120" autofocus>
+    <button class="primary" data-act="create-submit">${tr('onb.createBtn')}</button>
+    <button class="textbtn" data-act="onboarding-back">${tr('common.back')}</button>
   </div>`;
 }
 async function createOrganization() {
   const name = $('organization-name').value.trim();
   if (!name) {
     $('organization-name').classList.add('invalid');
-    $('onboarding-status').textContent = 'Enter an organization name.';
+    $('onboarding-status').textContent = tr('onb.errName');
     return;
   }
   $('onboarding-status').textContent = '';
-  showBusy('Creating organization');
+  showBusy(tr('onb.creating'));
   const {data, error} = await sb.rpc('create_organization', {organization_name: name.trim()});
   if (error) { hideBusy(); $('onboarding-status').textContent = error.message; return; }
   organization = data;
@@ -1244,11 +1245,11 @@ async function createOrganization() {
 }
 function showJoinOrganization() {
   $('onboarding-content').innerHTML = `<div class="onboarding-form">
-    <label class="required" for="join-token">Six-digit invite code</label>
+    <label class="required" for="join-token">${tr('onb.codeLabel')}</label>
     <input class="in invite-code-input" id="join-token" inputmode="numeric" maxlength="7" placeholder="000-000" value="${esc(pendingInvite)}">
-    <button class="primary" data-act="join-submit">Join organization</button>
-    <button class="btn" data-act="scan-invite">Scan QR code</button>
-    <button class="textbtn" data-act="onboarding-back">Back</button>
+    <button class="primary" data-act="join-submit">${tr('onb.joinBtn')}</button>
+    <button class="btn" data-act="scan-invite">${tr('onb.scan')}</button>
+    <button class="textbtn" data-act="onboarding-back">${tr('common.back')}</button>
   </div>`;
 }
 async function stopScanner() {
@@ -1273,7 +1274,7 @@ function scanSuccess() {
 }
 function scanInvite() {
   if (typeof Html5Qrcode !== 'function') {
-    $('onboarding-status').textContent = 'QR scanning is unavailable. Enter the six-digit code instead.';
+    $('onboarding-status').textContent = tr('onb.qrNo');
     return;
   }
   $('scan-status').textContent = '';
@@ -1287,7 +1288,7 @@ function scanInvite() {
       if (window.tallyQrScanner !== scanner) return;
       const digits = text.replace(/\D/g, '').slice(-6);
       if (digits.length !== 6) {
-        $('scan-status').textContent = 'That QR code is not a Tally invite code.';
+        $('scan-status').textContent = tr('onb.qrBad');
         return;
       }
       $('join-token').value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
@@ -1296,7 +1297,7 @@ function scanInvite() {
     () => {}
   ).catch(error => {
     closeScanner();
-    $('onboarding-status').textContent = 'Could not access the camera. Enter the six-digit code instead.';
+    $('onboarding-status').textContent = tr('onb.camera');
     console.error('Could not start QR scanner:', error);
   });
 }
@@ -1328,11 +1329,11 @@ async function joinOrganization() {
   input.classList.remove('invalid');
   if (!/^\d{6}$/.test(token)) {
     input.classList.add('invalid');
-    status.textContent = 'Enter the six digits shown by the owner.';
+    status.textContent = tr('onb.sixDigits');
     return;
   }
   status.textContent = '';
-  showBusy('Joining organization');
+  showBusy(tr('onb.joining'));
   const {data, error} = await sb.rpc('accept_organization_invite', {raw_token: token});
   if (error) { hideBusy(); status.textContent = error.message; return; }
   if (!data || !data.ok) {
@@ -1355,23 +1356,23 @@ function openInviteModal() {
   panel.classList.add('invite-mode');
   x.dataset.act = 'onboarding-close'; // in this view the corner X only closes the modal (the normal one signs out)
   x.setAttribute('aria-label', 'Close');
-  $('onboarding-title').textContent = 'Invite a sewer';
+  $('onboarding-title').textContent = tr('inv.title');
   $('onboarding-status').textContent = '';
-  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>Invite code</span><div class="invite-qr invite-wait">' + loaderHTML('Tally', true) + '</div><strong>···</strong></div>';
+  $('onboarding-content').innerHTML = '<div class="invite-code-display"><span>' + tr('inv.code') + '</span><div class="invite-qr invite-wait">' + loaderHTML('Tally', true) + '</div><strong>···</strong></div>';
   $('onboarding').hidden = false;
 }
 function showInvite(token, expiresAt) {
   const displayCode = `${token.slice(0, 3)}-${token.slice(3)}`;
   const until = new Date(expiresAt).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'});
   navigator.clipboard && navigator.clipboard.writeText(displayCode).catch(() => {});
-  $('onboarding-content').innerHTML = `<div class="invite-code-display"><span>Invite code</span><div class="invite-qr" id="invite-qr"></div><strong>${esc(displayCode)}</strong><small>Scan this QR code or share the six-digit code. Valid until ${until}.</small></div>`;
+  $('onboarding-content').innerHTML = `<div class="invite-code-display"><span>${tr('inv.code')}</span><div class="invite-qr" id="invite-qr"></div><strong>${esc(displayCode)}</strong><small>Scan this QR code or share the six-digit code. Valid until ${until}.</small></div>`;
   if (typeof QRCode === 'function') {
     new QRCode($('invite-qr'), {text: token, width: 180, height: 180});
   }
 }
 async function createInvite() {
   if (!organization || !organization.id) {
-    $('onboarding-status').textContent = 'Your organization is not loaded yet. Please refresh and try again.';
+    $('onboarding-status').textContent = tr('err.orgNotLoaded');
     $('onboarding').hidden = false;
     return;
   }
@@ -1386,7 +1387,7 @@ async function createInvite() {
     const {data, error} = await sb.rpc('create_organization_invite', {target_organization: organization.id});
     if (error || !data || !data[0] || !data[0].invite_token) {
       hideOnboarding();
-      alert('Could not create invite: ' + (error ? error.message : 'Supabase returned no invite token.'));
+      alert(tr('err.invite') + (error ? error.message : 'Supabase returned no invite token.'));
       return;
     }
     inviteCache = {org: organization.id, token: data[0].invite_token, expires: data[0].expires_at};
@@ -1419,6 +1420,9 @@ function hideAuth() {
 function setAuthMode(m) {
   authMode = m;
   hideConfirmation();
+  $('a-name').hidden = $('a-name-l').hidden = m !== 'signup';
+  $('a-name').required = m === 'signup';
+  $('a-name').classList.remove('invalid');
   $('a-title').textContent = m === 'signup' ? tr('auth.createTitle') : tr('auth.welcome');
   $('a-go').textContent = m === 'signup' ? tr('auth.signup') : tr('auth.login');
   $('a-switch').innerHTML = m === 'signup' ? tr('auth.switchToLogin') : tr('auth.switchToSignup');
@@ -1481,7 +1485,7 @@ async function resendConfirmation() {
   $('confirm-status').textContent = 'Sending…';
   const {error} = await sb.auth.resend({type: 'signup', email, options: {emailRedirectTo: confirmationRedirectUrl()}});
   button.disabled = false;
-  $('confirm-status').textContent = error ? error.message : 'A new confirmation email is on its way.';
+  $('confirm-status').textContent = error ? error.message : tr('auth.resent');
 }
 async function fetchAllEntries() {
   const PAGE = 1000; // Supabase returns at most 1000 rows per request, so load in pages
@@ -1501,7 +1505,7 @@ async function fetchAllEntries() {
 }
 async function refresh() {
   const {data, error} = await fetchAllEntries();
-  if (error) { alert('Could not load entries: ' + error.message); return; }
+  if (error) { alert(tr('err.loadEntries') + error.message); return; }
   profileNames.clear();
   data.forEach(r => {
     if (r.sewer_id && r.profiles && r.profiles.name) profileNames.set(r.sewer_id, r.profiles.name);
@@ -1511,8 +1515,8 @@ async function refresh() {
     sb.from('tally_rates').select('supplier, item, size, price, pay').eq('organization_id', organization.id),
     sb.from('tally_catalog_values').select('kind, value').eq('organization_id', organization.id).order('value')
   ]);
-  if (rateRes.error) { alert('Could not load rates: ' + rateRes.error.message); return; }
-  if (catalogRes.error) { alert('Could not load catalog: ' + catalogRes.error.message); return; }
+  if (rateRes.error) { alert(tr('err.loadRates') + rateRes.error.message); return; }
+  if (catalogRes.error) { alert(tr('err.loadCatalog') + catalogRes.error.message); return; }
   rates = rateRes.data || [];
   catalog = {item: [], color: [], size: [], supplier: []};
   (catalogRes.data || []).forEach(x => { if (catalog[x.kind]) catalog[x.kind].push(x.value); });
@@ -1606,7 +1610,7 @@ async function enter() {
   renderLoading(word);
   const {data: u} = await sb.auth.getUser();
   if (!u || !u.user || !u.user.id) {
-    showAuth('Your session expired. Please log in again.');
+    showAuth(tr('err.session'));
     return;
   }
   const {data: p, error} = await sb.from('profiles').select('id, name, role, organization_id, active').eq('id', u.user.id).single();
@@ -1623,11 +1627,11 @@ async function enter() {
   }
   const {data: org, error: orgError} = await sb.from('organizations').select('id, name, created_by').eq('id', p.organization_id).single();
   if (orgError || !org) {
-    showAuth('Could not load your organization. Ask the owner to check the organization setup.');
+    showAuth(tr('err.orgLoad'));
     return;
   }
   if (!org.id) {
-    showAuth('Your organization record is incomplete. Ask the owner to recreate it.');
+    showAuth(tr('err.orgIncomplete'));
     return;
   }
   organization = org;
@@ -1638,14 +1642,15 @@ async function enter() {
   await refresh();
   subscribeRealtime();
   hideAuth(); hideOnboarding(); view = isOwner() ? 'log' : 'my-log'; render();
+  if (window.TUTORIAL) TUTORIAL.autoStart({id: me.id, role: me.role, demo: demoMode}); // TUTORIAL
 }
 async function authGo() {
-  const email = $('a-email').value.trim(), password = $('a-pass').value;
-  const authFields = ['a-email', 'a-pass'];
+  const email = $('a-email').value.trim(), password = $('a-pass').value, name = $('a-name').value.trim();
+  const authFields = authMode === 'signup' ? ['a-name', 'a-email', 'a-pass'] : ['a-email', 'a-pass'];
   if (!validateRequired(authFields)) return;
-  if (!email || password.length < 6) {
+  if (!email || password.length < 6 || (authMode === 'signup' && !name)) {
     if (password.length < 6) $('a-pass').classList.add('invalid');
-    $('a-err').textContent = 'Enter your email and a password of 6 or more characters.'; return;
+    $('a-err').textContent = authMode === 'signup' ? tr('auth.errSignup') : tr('auth.errLogin'); return;
   }
   if (authTest) {
     if (authMode === 'signup') {
@@ -1659,7 +1664,7 @@ async function authGo() {
   try {
     if (authMode === 'signup') showConfirmationLoading(email);
     const res = authMode === 'signup'
-      ? await sb.auth.signUp({email, password, options: {emailRedirectTo: confirmationRedirectUrl()}})
+      ? await sb.auth.signUp({email, password, options: {data: {name}, emailRedirectTo: confirmationRedirectUrl()}})
       : await sb.auth.signInWithPassword({email, password});
     if (res.error) {
       const fields = authMode === 'login' ? ['a-email', 'a-pass'] : ['a-email'];
@@ -1671,7 +1676,7 @@ async function authGo() {
     await enter();
   } catch (e) {
     hideConfirmation();
-    showAuth('Could not connect. Check your connection and try again.');
+    showAuth(tr('err.connect'));
   }
 }
 async function authGoogle() {
@@ -1723,14 +1728,14 @@ async function removeEntry(id) {
   if (error || !data || data.length === 0) {
     alert(error
       ? tr('err.delEntry') + error.message
-      : 'Could not delete this entry. You may not have permission, or it was already deleted.');
+      : tr('err.delPerm'));
     await refresh(); // resync with the real data instead of guessing
     render();
   }
 }
 async function boot() {
   if (authTest) { showAuth(); return; }
-  if (!cloud) { me = {id: 'local-user', name: 'Local owner', role: 'owner'}; organization = {id: 'local-org', name: 'Local workspace'}; entries = loadEntries(); deriveLocalRates(); hideLoading(); render(); return; }
+  if (!cloud) { me = {id: 'local-user', name: 'Local owner', role: 'owner'}; organization = {id: 'local-org', name: 'Local workspace'}; entries = loadEntries(); deriveLocalRates(); hideLoading(); render(); if (window.TUTORIAL) TUTORIAL.autoStart({id: me.id, role: me.role, demo: demoMode}); return; } // TUTORIAL
   renderLoading();
   try {
     const {data, error} = await withTimeout(sb.auth.getSession(), 8000, 'Supabase took too long to respond.');
@@ -1741,13 +1746,13 @@ async function boot() {
       throw error;
     }
     if (data.session) {
-      await withTimeout(enter(), 12000, 'Could not load your workspace in time.');
+      await withTimeout(enter(), 12000, tr('err.workspaceLate'));
     } else {
       showAuth();
     }
   } catch (error) {
     console.error('Tally startup failed:', error);
-    showAuth(error.message || 'Tally could not connect to Supabase. Check your connection and try again.');
+    showAuth(error.message || tr('err.startup'));
   }
 }
 initMeshBackground();

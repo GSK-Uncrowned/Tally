@@ -1,0 +1,17 @@
+/* Tutorial overlay: dimmed screen, spotlight, speech bubble. See tutorial.js. */
+.tut { position: fixed; inset: 0; z-index: 300; }
+.tut-block { position: absolute; inset: 0; }                      /* swallows taps so the page behind can't be used */
+.tut-hole { position: absolute; pointer-events: none; box-shadow: 0 0 0 9999px rgba(8, 6, 12, .72); transition: left .25s ease, top .25s ease, width .25s ease, height .25s ease; }
+.tut-bubble { position: absolute; width: min(320px, calc(100vw - 24px)); box-sizing: border-box; padding: 16px; border-radius: 16px; background: var(--surface, #fff); color: var(--ink, #111); border: 1px solid var(--line, #ddd); box-shadow: 0 12px 40px rgba(0, 0, 0, .45); animation: tut-in .2s ease-out; }
+.tut-arrow { position: absolute; width: 14px; height: 14px; background: var(--surface, #fff); border: 1px solid var(--line, #ddd); transform: rotate(45deg); }
+.tut-bubble.below .tut-arrow { top: -8px; border-right: 0; border-bottom: 0; }
+.tut-bubble.above .tut-arrow { bottom: -8px; border-left: 0; border-top: 0; }
+.tut-count { margin: 0 0 4px; font-size: .78rem; color: var(--muted, #777); }
+.tut-title { margin: 0 0 6px; font-size: 1.1rem; }
+.tut-text { margin: 0; line-height: 1.45; font-size: .95rem; }
+.tut-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 14px; }
+.tut-skip { background: none; border: 0; padding: 8px 4px; color: var(--muted, #777); font: inherit; cursor: pointer; }
+.tut-next { border: 0; border-radius: 12px; padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer; background: var(--accent, var(--ink, #111)); color: var(--accent-ink, var(--bg, #fff)); }
+.tut-next:focus-visible, .tut-skip:focus-visible { outline: 2px solid var(--accent, var(--ink, #111)); outline-offset: 2px; }
+@keyframes tut-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tut-bubble { animation: none; } .tut-hole { transition: none; } }

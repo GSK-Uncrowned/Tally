@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Gochi+Hand&display=swap">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="settings.css">
+<link rel="stylesheet" href="tutorial.css">
 <!-- HALLOWEEN theme: delete these two lines to remove it completely -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&display=swap">
 <link rel="stylesheet" href="theme-halloween.css">
@@ -63,6 +64,7 @@
     <div class="auth-brand"><svg viewBox="0 7 48 35" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="11" x2="10.9" y2="38"/><line x1="19" y1="10" x2="18.3" y2="39.5"/><line x1="28" y1="12.5" x2="28.8" y2="37"/><line x1="37" y1="10" x2="36.8" y2="38.5"/><line x1="2.5" y1="37" x2="45.5" y2="12" stroke-width="3.2"/></svg><span class="brand-word">Tally</span></div>
     <h1 id="a-title">Welcome back</h1>
     <p class="muted" id="a-sub">Log in to continue</p>
+    <label class="required" for="a-name" id="a-name-l" data-i18n="auth.name" hidden>Your name</label><input class="in" id="a-name" autocomplete="name" hidden>
     <label class="required" for="a-email" data-i18n="auth.email">Email</label><input class="in" id="a-email" type="email" autocomplete="email" required>
     <label class="required" for="a-pass" data-i18n="auth.password">Password</label><input class="in" id="a-pass" type="password" autocomplete="current-password" required>
     <p id="a-err" role="alert"></p>
@@ -89,7 +91,7 @@
   <section class="confirm-panel onboarding-panel" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
     <button class="onboarding-close" data-act="onboarding-exit" aria-label="Exit organization setup">&times;</button>
     <div class="auth-brand"><svg viewBox="0 7 48 35" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="11" x2="10.9" y2="38"/><line x1="19" y1="10" x2="18.3" y2="39.5"/><line x1="28" y1="12.5" x2="28.8" y2="37"/><line x1="37" y1="10" x2="36.8" y2="38.5"/><line x1="2.5" y1="37" x2="45.5" y2="12" stroke-width="3.2"/></svg><span class="brand-word">Tally</span></div>
-    <h2 id="onboarding-title">Set up your workspace</h2>
+    <h2 id="onboarding-title" data-i18n="onb.title">Set up your workspace</h2>
     <div id="onboarding-content"></div>
     <p id="onboarding-status" role="alert"></p>
   </section>
@@ -98,7 +100,7 @@
   <section class="confirm-panel scan-panel" role="dialog" aria-modal="true" aria-labelledby="scan-title">
     <button class="onboarding-close" data-act="scan-close" aria-label="Close scanner">&times;</button>
     <div class="scan-main">
-      <h2 id="scan-title">Scan invite QR code</h2>
+      <h2 id="scan-title" data-i18n="scan.title">Scan invite QR code</h2>
       <div id="qr-reader" class="qr-reader"></div>
       <p id="scan-status" role="alert"></p>
     </div>
@@ -123,7 +125,7 @@
           <path class="ok-check" d="M44 61 L56 73 L78 49" pathLength="1"/>
         </g>
       </svg>
-      <p class="ok-text">Code scanned</p>
+      <p class="ok-text" data-i18n="scan.done">Code scanned</p>
     </div>
   </section>
 </div>
@@ -132,6 +134,7 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="config.js"></script>
 <script src="i18n.js"></script>
+<script src="tutorial.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
