@@ -284,6 +284,11 @@ create policy "members can view organization catalog"
   on public.tally_catalog_values for select
   using (public.is_organization_member(organization_id));
 
+drop policy if exists "members can create organization catalog" on public.tally_catalog_values;
+create policy "members can create organization catalog"
+  on public.tally_catalog_values for insert
+  with check (public.is_organization_member(organization_id) and created_by = auth.uid());
+
 drop policy if exists "owners can manage organization catalog" on public.tally_catalog_values;
 create policy "owners can manage organization catalog"
   on public.tally_catalog_values for all

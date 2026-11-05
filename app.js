@@ -679,6 +679,7 @@ let settingsFrom = 'log', settingsSection = 'general';
 const SETTINGS_SECTIONS = ['general', 'profile', 'workspace', 'help'];
 const ico = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const SET_ICO = {
+  settings: ico('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>'),
   general: ico('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
   profile: ico('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>'),
   workspace: ico('<path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/>'),
@@ -780,8 +781,8 @@ function renderTopbar() {
     <summary><span class="avatar">${esc(me.name[0].toUpperCase())}</span><span class="profile-name">${esc(me.name)}</span></summary>
     <div class="profile-popover">
       <strong>${esc(me.name)} <span class="muted">· ${isOwner() ? t('role.owner') : t('role.sewer')}</span></strong>
-      <button class="menu-btn" data-act="settings">${esc(t('menu.settings'))}</button>
-      ${demoMode ? `<button class="menu-btn" data-act="demo-exit">${esc(t('menu.demoExit'))}</button>` : `<button class="menu-btn" data-act="logout">${esc(t('menu.logout'))}</button>`}
+      <button class="menu-btn" data-act="settings"><span class="menu-ico">${SET_ICO.settings}</span><span>${esc(t('menu.settings'))}</span></button>
+      ${demoMode ? `<button class="menu-btn" data-act="demo-exit"><span class="menu-ico">${SET_ICO.demo}</span><span>${esc(t('menu.demoExit'))}</span></button>` : `<button class="menu-btn" data-act="logout"><span class="menu-ico">${SET_ICO.logout}</span><span>${esc(t('menu.logout'))}</span></button>`}
     </div>
   </details>`;
 }
@@ -912,12 +913,10 @@ const WIZARD_STEPS = [
 ];
 function wizardOptions(kind) {
   if (wizard.practice && window.TUTORIAL && TUTORIAL.quickEntry()) {
-    return TUTORIAL.quickEntryValues(kind);
+    const quickValues = TUTORIAL.quickEntryValues(kind);
+    return quickValues.length ? quickValues : catalogValues(kind);
   }
-  if (kind !== 'item' || !wizard.values.client) return catalogValues(kind);
-  const linked = new Set(entries.filter(e => e.client === wizard.values.client).map(e => e.item));
-  const values = catalogValues(kind);
-  return values.filter(v => linked.has(v));
+  return catalogValues(kind);
 }
 function openDialog(practice) {
   if (practice === undefined) practice = !!(window.TUTORIAL && TUTORIAL.interceptAdd()); // TUTORIAL

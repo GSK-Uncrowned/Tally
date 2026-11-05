@@ -43,11 +43,9 @@
     'tut.p.qty.title': 'How many pieces?',
     'tut.p.qty.text': 'Type how many pieces you finished, then tap Save entry.',
     'tut.p.done.title': 'Great job!',
-    'tut.p.done.text': 'That was only practice, so nothing was saved. Real entries work the same way, and the new values you type are remembered for next time.',
-    'tut.quick.intro.title': 'Next time is faster',
-    'tut.quick.intro.text': 'Once your usual values are saved, adding another entry is just a few taps: supplier, item, color and size. Then enter the quantity.',
+    'tut.p.done.text': 'Now try again: tap the saved values instead of typing.',
     'tut.quick.start.title': 'Try a repeat entry',
-    'tut.quick.start.text': 'Tap Add entry and watch how quickly a familiar entry can be recorded.',
+    'tut.quick.start.text': 'Tap Add entry, then tap each saved value.',
     'tut.quick.client.title': 'Tap the saved supplier',
     'tut.quick.client.text': 'Choose the supplier you already use.',
     'tut.quick.item.title': 'Tap the saved item',
@@ -98,11 +96,9 @@
     'tut.p.qty.title': 'Ilang piraso?',
     'tut.p.qty.text': 'I-type kung ilang piraso ang natapos mo, saka pindutin ang I-save ang tala.',
     'tut.p.done.title': 'Mahusay!',
-    'tut.p.done.text': 'Pagsasanay lang iyon, kaya walang na-save. Ganito rin ang mga tunay na tala, at maaalala ang mga bagong halagang ita-type mo sa susunod.',
-    'tut.quick.intro.title': 'Mas mabilis sa susunod',
-    'tut.quick.intro.text': 'Kapag naka-save na ang mga karaniwang halaga, ilang pindot na lang: supplier, item, kulay at laki. Saka ilagay ang dami.',
+    'tut.p.done.text': 'Subukan ulit: pindutin ang mga naka-save na halaga sa halip na mag-type.',
     'tut.quick.start.title': 'Subukan ang paulit-ulit na tala',
-    'tut.quick.start.text': 'Pindutin ang Magdagdag ng tala at tingnan kung gaano kabilis magtala ng pamilyar na trabaho.',
+    'tut.quick.start.text': 'Pindutin ang Magdagdag ng tala, saka piliin ang mga naka-save na halaga.',
     'tut.quick.client.title': 'Pindutin ang naka-save na supplier',
     'tut.quick.client.text': 'Piliin ang dati mong supplier.',
     'tut.quick.item.title': 'Pindutin ang naka-save na item',
@@ -137,7 +133,6 @@
     practiceStep({center: true}, 'done')
   ];
   const QUICK_STEPS = [
-    quickStep({center: true}, 'intro'),
     quickStep({view: 'HOME', sel: '.fab', wait: name => name === 'wizard'}, 'start'),
     quickStep({sel: practiceTarget, wait: wizAt(1)}, 'client'),
     quickStep({sel: practiceTarget, wait: wizAt(2)}, 'item'),
@@ -352,7 +347,10 @@
     start(kind) { start(kind || 'main'); },
     practicing() { return !!ui && type === 'practice'; },
     quickEntry() { return !!ui && steps[idx] && steps[idx].prefix === 'quick'; },
-    quickEntryValues(kind) { return quickValues[kind] ? [quickValues[kind]] : []; },
+    quickEntryValues(kind) {
+      const key = kind === 'supplier' ? 'client' : kind;
+      return quickValues[key] ? [quickValues[key]] : [];
+    },
     // Called when Add entry is tapped. Returns true when the form should open in practice mode.
     interceptAdd() {
       if (!ui) return false;
