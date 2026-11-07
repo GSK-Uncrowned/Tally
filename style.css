@@ -362,6 +362,7 @@ main{width:100%;max-width:1120px;margin:0 auto;padding:72px 56px 80px}
 .oauth-btn:hover{background:color-mix(in srgb,var(--ink) 10%,transparent)}
 .authbox .textbtn{margin-top:20px}
 .onboarding-panel.name-mode>.muted{display:none}
+.onboarding-actions .auth-divider{margin:1px 0}
 
 /* Name step spacing; centre the word "Tally" on its logo marks (trims the font's extra top/bottom space) */
 .onboarding-form .in+.primary{margin-top:14px}

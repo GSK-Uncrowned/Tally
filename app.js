@@ -493,6 +493,7 @@ function openFinalizeSheet() {
     `<p class="muted">${tr('fin.afterNote')}</p>
     <div class="fin-actions"><button class="btn" data-act="fin-close">${tr('common.cancel')}</button><button class="primary" data-act="fin-go">${tr('fin.finalize')}</button></div>`;
   $('fin-dlg').showModal();
+  if (window.TUTORIAL) TUTORIAL.event('fin-open'); // TUTORIAL
 }
 function openReopenSheet() {
   $('fin-dlg').innerHTML = `<button class="onboarding-close" data-act="fin-close" aria-label="${tr('aria.close')}">&times;</button><div class="fin-grab"></div><h2>${tr('fin.reopenTitle').replace('{week}', weekText(swWeek))}</h2>
@@ -503,7 +504,7 @@ function openReopenSheet() {
 async function runSheet(act, label, fn) {
   const btn = $('fin-dlg').querySelector(`[data-act="${act}"]`);
   btn.disabled = true; btn.textContent = label;
-  if (await fn(swWeek)) { $('fin-dlg').close(); render(); } else { btn.disabled = false; btn.textContent = label.replace('…', '').replace('Finalizing', 'Finalize').replace('Reopening', 'Reopen'); }
+  if (await fn(swWeek)) { if (window.TUTORIAL) TUTORIAL.event('fin-done'); /* TUTORIAL */ $('fin-dlg').close(); render(); } else { btn.disabled = false; btn.textContent = label.replace('…', '').replace('Finalizing', 'Finalize').replace('Reopening', 'Reopen'); }
 }
 
 // ---- Payslip images ----
@@ -613,13 +614,17 @@ async function downloadSupplierSlip(d) {
     sections: [{head: null, groups}], totalLabel: tr('fin.total'), total: peso(total), foot: tr('sheet.finalizedOn') + finDate(p)});
   saveCanvas(c, `Tally-statement-${d.n.replace(/\s+/g, '-')}-${key}.png`);
 }
-async function downloadSummary() {
+async function summaryCanvas() {
   const key = ymd(swWeek), p = periods[key];
-  if (!p) return;
+  if (!p) return null;
   const sts = (p.statements || []).slice().sort((x, y) => textCmp(x.sewer_name, y.sewer_name));
   const c = await drawSheet({title: tr('sheet.weeklyReport'), name: (organization && organization.name) || tr('sheet.allSewers'), sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
     sections: sts.map(st => statementSection(st, true)), totalLabel: tr('tot.sewerPay'), total: peso(sts.reduce((t, st) => t + Number(st.total), 0)), foot: tr('sheet.finalizedOn') + finDate(p)});
-  saveCanvas(c, `Tally-salary-report-${key}.png`);
+  return c;
+}
+async function downloadSummary() {
+  const c = await summaryCanvas();
+  if (c) saveCanvas(c, `Tally-salary-report-${ymd(swWeek)}.png`);
 }
 
 // ---- Suppliers (the people the cloth comes from) ----
@@ -847,6 +852,7 @@ function exitDemoData() {
   demoMode = false;
   render();
 }
+window.TallyDemo = { enter: () => tryDemoData(), exit: () => exitDemoData(), active: () => demoMode, hasEntries: () => entries.length > 0, dropRate: () => { if (demoMode && rates.length) { rates.shift(); render(); } }, summaryPreview: async () => { const c = await summaryCanvas(); return c ? c.toDataURL('image/png') : null; } }; // TUTORIAL: lets tab lessons borrow the demo data
 function loaderHTML(label, small) {
   return `<div class="tl${small ? ' sm' : ''}" aria-hidden="true">
     <svg viewBox="0 7 48 35">
@@ -906,6 +912,7 @@ function render() {
   });
   renderSettingsNav();
   if (window.TUTORIAL) TUTORIAL.event('render', {view: nextView, section: settingsSection, lang: I18N.lang(), size: I18N.textSize()}); // TUTORIAL
+  if (window.TUTORIAL) TUTORIAL.visit(nextView); // TUTORIAL
 }
 const $ = id => document.getElementById(id);
 showBusy('');
@@ -1082,7 +1089,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'reopen-go') { runSheet('reopen-go', 'Reopening…', reopenWeek); return; }
   else if (d.act === 'slip') { downloadSlip(d); return; }
   else if (d.act === 'sup-slip') { downloadSupplierSlip(d); return; }
-  else if (d.act === 'sum') { downloadSummary(); return; }
+  else if (d.act === 'sum') { if (window.TUTORIAL && TUTORIAL.interceptDownload()) return; /* TUTORIAL */ downloadSummary(); return; }
   else if (d.act === 'rate-save') { saveRate(); return; }
   else if (d.act === 'catalog-add') { addCatalogValue(d.kind); return; }
   else if (d.act === 'ask') pendingDel = d.id;
@@ -1118,12 +1125,13 @@ document.addEventListener('click', ev => {
   else if (d.act === 'week' || d.act === 'day') {
     const t = d.act, same = sel && sel.t === t && sel.d === d.d;
     sel = same ? null : {t, d: d.d};
+    if (window.TUTORIAL) TUTORIAL.event('select', {t}); // TUTORIAL
   }
   else if (d.act === 'lw') logWeek = addDays(logWeek, 7 * Number(d.d));
   else if (d.act === 'sw') swWeek = addDays(swWeek, 7 * Number(d.d));
-  else if (d.act === 'sewer') { openReceipt('sewer', d.n); return; }
+  else if (d.act === 'sewer') { openReceipt('sewer', d.n); if (window.TUTORIAL) TUTORIAL.event('receipt'); /* TUTORIAL */ return; }
   else if (d.act === 'receipt-close') { $('receipt-dlg').close(); return; }
-  else if (d.act === 'supplier') { openReceipt('supplier', d.n); return; }
+  else if (d.act === 'supplier') { openReceipt('supplier', d.n); if (window.TUTORIAL) TUTORIAL.event('receipt'); /* TUTORIAL */ return; }
   else if (d.act === 'sp') spWeek = addDays(spWeek, 7 * Number(d.d));
   else if (d.act === 'mshift') { month = new Date(month.getFullYear(), month.getMonth() + Number(d.d), 1); sel = null; }
   render();
@@ -1160,6 +1168,7 @@ function openRateDialog(supplier = '', item = '', size = '') {
   $('r-pay').value = r ? r.pay : '';
   $('rate-err').textContent = '';
   $('rate-dlg').showModal();
+  if (window.TUTORIAL) TUTORIAL.event('rate-open'); // TUTORIAL
 }
 function addRateFlow() {
   const supplier = prompt(tr('prompt.supplier'));
@@ -1203,6 +1212,7 @@ async function saveRate() {
       }
     }
   } else if (!demoMode) { saveEntries(); saveLocalSetup(); }
+  if (window.TUTORIAL) TUTORIAL.event('rate-saved'); // TUTORIAL
   $('rate-dlg').close(); render();
 }
 async function addCatalogValue(kind) {
@@ -1261,6 +1271,7 @@ function showOnboardingChoices() {
   document.querySelector('.onboarding-panel').classList.remove('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-actions">
     <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>${tr('onb.create')}</strong></span><span class="onboarding-arrow">→</span></button>
+    <div class="auth-divider"><span>${tr('auth.or')}</span></div>
     <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>${tr('onb.join')}</strong></span><span class="onboarding-arrow">→</span></button>
   </div>`;
   if (pendingInvite) showJoinOrganization();
