@@ -338,7 +338,7 @@
     const vw = window.innerWidth, vh = window.innerHeight;
     const hole = ui.querySelector('.tut-hole'), block = ui.querySelector('.tut-block'), masks = ui.querySelectorAll('.tut-mask');
     const bubble = ui.querySelector('.tut-bubble');
-    bubble.style.maxWidth = (vw - 24) + 'px'; bubble.style.maxHeight = (vh - 24) + 'px'; bubble.style.overflowY = 'auto';
+    bubble.style.maxWidth = (vw - 24) + 'px';
     const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
     if (step.center) {
       hole.style.display = 'none'; masks.forEach(m => { m.style.display = 'none'; });
@@ -455,20 +455,24 @@
       await card.animate([{ opacity: 0, transform: 'scale(.5) translateY(30px)' }, { opacity: 1, transform: 'scale(1) translateY(0)' }],
         { duration: ms(380), easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'forwards' }).finished;
       await wait(calm ? 0 : 450);
-      const r = btn.getBoundingClientRect();
-      const tx = r.left + r.width / 2 - vw / 2, ty = r.top + r.height / 2 - vh / 2;
-      await card.animate([{ transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 }, { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(.1) rotate(10deg)', opacity: .9 }],
+      const tx = (vw - 40) - vw / 2, ty = 36 - vh / 2;   // fly to the top-right corner, where the browser shows downloads
+      await card.animate([{ transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 }, { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(.08) rotate(12deg)', opacity: .9 }],
         { duration: ms(750), easing: 'cubic-bezier(.5,0,.85,.45)', fill: 'forwards' }).finished;
     } catch (e) { /* animation cancelled */ }
     card.remove();
-    btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: ms(350) });
-    const r2 = btn.getBoundingClientRect(), pill = document.createElement('div');
-    pill.textContent = '✓ ' + t('tut.tab.salary.saved');
-    pill.style.cssText = 'position:fixed;pointer-events:none;z-index:' + Z + ';left:' + Math.max(8, Math.min(vw - 190, r2.left + r2.width / 2 - 90)) + 'px;top:' + (r2.bottom + 12) + 'px;background:#111;color:#fff;padding:8px 14px;border-radius:999px;font:600 14px "DM Sans",sans-serif;white-space:nowrap';
-    document.body.appendChild(pill);
-    pill.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: ms(250), fill: 'forwards' });
-    await wait(calm ? 400 : 1400);
-    pill.remove(); playing = false;
+    // a small "browser download" chip drops into the top-right corner, then turns into a tick
+    const chip = document.createElement('div'), icon = document.createElement('span'), label = document.createElement('span');
+    icon.textContent = '↓'; label.textContent = 'Tally-salary-report.png';
+    icon.style.cssText = 'width:26px;height:26px;border-radius:50%;background:#fff;color:#111;display:grid;place-items:center;font:700 15px "DM Sans",sans-serif';
+    chip.style.cssText = 'position:fixed;pointer-events:none;z-index:' + Z + ';right:10px;top:calc(env(safe-area-inset-top, 0px) + 10px);display:flex;align-items:center;gap:8px;background:#111;color:#fff;padding:7px 14px 7px 7px;border-radius:999px;font:600 14px "DM Sans",sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:calc(100vw - 20px)';
+    chip.append(icon, label);
+    document.body.appendChild(chip);
+    chip.animate([{ opacity: 0, transform: 'translateY(-14px) scale(.9)' }, { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: ms(260), fill: 'forwards' });
+    icon.animate([{ transform: 'translateY(-4px)' }, { transform: 'translateY(3px)' }], { duration: ms(280), iterations: calm ? 1 : 3, direction: 'alternate' });
+    await wait(calm ? 0 : 900);
+    icon.textContent = '✓'; label.textContent = t('tut.tab.salary.saved');
+    await wait(calm ? 400 : 1500);
+    chip.remove(); playing = false;
     if (my === token && ui) go(idx + 1);
   }
   // app.js calls this when Download all is tapped: during the lesson it plays the animation instead of saving a file.
