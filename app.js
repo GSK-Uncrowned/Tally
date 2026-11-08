@@ -852,7 +852,39 @@ function exitDemoData() {
   demoMode = false;
   render();
 }
-window.TallyDemo = { enter: () => tryDemoData(), exit: () => exitDemoData(), active: () => demoMode, hasEntries: () => entries.length > 0, dropRate: () => { if (demoMode && rates.length) { rates.shift(); render(); } }, summaryPreview: async () => { const c = await summaryCanvas(); return c ? c.toDataURL('image/png') : null; } }; // TUTORIAL: lets tab lessons borrow the demo data
+async function slipPreviewForMe() { // TUTORIAL: the payslip picture, for the download demo
+  const p = periods[ymd(swWeek)], st = p && (p.statements || []).find(x => x.sewer_id === me.id);
+  if (!st) return null;
+  const c = await drawSheet({title: tr('sheet.payslip'), name: st.sewer_name, sub: weekText(swWeek) + ', ' + addDays(swWeek, 6).getFullYear(),
+    sections: [statementSection(st, false)], total: peso(Number(st.total)), foot: tr('sheet.finalizedOn') + finDate(p)});
+  return c.toDataURL('image/png');
+}
+let demoUiSaved = null; // TUTORIAL: month / week / selection to put back when a lesson's demo ends
+const keepUi = () => { if (!demoUiSaved) demoUiSaved = {month, swWeek, sel}; };
+window.TallyDemo = {
+  enter: () => { keepUi(); tryDemoData(); },
+  enterSewer: v => { keepUi(); tryDemoData(); me = people.find(x => x.role === 'sewer') || me; view = v; render(); },   // demo data, seen as one of the demo sewers
+  exit: () => { exitDemoData(); if (demoUiSaved) { ({month, swWeek, sel} = demoUiSaved); demoUiSaved = null; render(); } }, active: () => demoMode, hasEntries: () => entries.length > 0,
+  dropRate: () => { if (demoMode && rates.length) { rates.shift(); render(); } },
+  prepareMonth: () => {   // show the latest month that has demo data (a sewer may have nothing in the first days of this month)
+    if (!demoMode) return;
+    const days = entries.filter(e => me.role !== 'sewer' || e.sewer_id === me.id).map(e => e.date).sort();
+    if (!days.length) return;
+    const d = parse(days[days.length - 1]);
+    month = new Date(d.getFullYear(), d.getMonth(), 1); sel = null;
+    render();
+  },
+  prepareSlip: () => {   // close the latest week this demo sewer worked, so a payslip exists to download
+    if (!demoMode) return;
+    const days = entries.filter(e => e.sewer_id === me.id).map(e => e.date).sort();
+    if (!days.length) return;
+    swWeek = weekStart(parse(days[days.length - 1]));
+    periods[ymd(swWeek)] = {finalized_at: new Date().toISOString(), statements: buildStatements(swWeek)};
+    render();
+  },
+  summaryPreview: async () => { const c = await summaryCanvas(); return c ? c.toDataURL('image/png') : null; },
+  slipPreview: slipPreviewForMe
+}; // TUTORIAL: lets tab lessons borrow the demo data
 function loaderHTML(label, small) {
   return `<div class="tl${small ? ' sm' : ''}" aria-hidden="true">
     <svg viewBox="0 7 48 35">
@@ -1087,7 +1119,7 @@ document.addEventListener('click', ev => {
   else if (d.act === 'fin-close') { $('fin-dlg').close(); return; }
   else if (d.act === 'fin-go') { runSheet('fin-go', 'Finalizing…', finalizeWeek); return; }
   else if (d.act === 'reopen-go') { runSheet('reopen-go', 'Reopening…', reopenWeek); return; }
-  else if (d.act === 'slip') { downloadSlip(d); return; }
+  else if (d.act === 'slip') { if (window.TUTORIAL && TUTORIAL.interceptDownload()) return; /* TUTORIAL */ downloadSlip(d); return; }
   else if (d.act === 'sup-slip') { downloadSupplierSlip(d); return; }
   else if (d.act === 'sum') { if (window.TUTORIAL && TUTORIAL.interceptDownload()) return; /* TUTORIAL */ downloadSummary(); return; }
   else if (d.act === 'rate-save') { saveRate(); return; }
@@ -1271,7 +1303,6 @@ function showOnboardingChoices() {
   document.querySelector('.onboarding-panel').classList.remove('name-mode');
   $('onboarding-content').innerHTML = `<div class="onboarding-actions">
     <button class="onboarding-card create-card" data-act="create-org"><span class="onboarding-icon">＋</span><span><strong>${tr('onb.create')}</strong></span><span class="onboarding-arrow">→</span></button>
-    <div class="auth-divider"><span>${tr('auth.or')}</span></div>
     <button class="onboarding-card join-card" data-act="join-org"><span class="onboarding-icon">⌁</span><span><strong>${tr('onb.join')}</strong></span><span class="onboarding-arrow">→</span></button>
   </div>`;
   if (pendingInvite) showJoinOrganization();

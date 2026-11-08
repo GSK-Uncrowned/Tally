@@ -55,6 +55,16 @@
     'tut.tab.salary.done.title': 'That’s Salary',
     'tut.tab.salary.done.text': 'Finalize closes the week and the download button saves the summary. Closed a week too early? Use the Reopen button on that week to unlock it.',
     'tut.tab.salary.saved': 'Saved to downloads',
+    'tut.tab.myfin.pick.title': 'Tap a week',
+    'tut.tab.myfin.pick.text': 'Tap the highlighted arrow beside a week to see what you earned that week.',
+    'tut.tab.myfin.detail.title': 'What you earned',
+    'tut.tab.myfin.detail.text': 'This shows the pieces you sewed and the pay for them. You can also tap a single day.',
+    'tut.tab.mysal.total.title': 'Your pay this week',
+    'tut.tab.mysal.total.text': 'This is what you have earned so far this week. It goes up every time you log your work.',
+    'tut.tab.mysal.slip.title': 'Your payslip',
+    'tut.tab.mysal.slip.text': 'When the owner closes the week, your payslip appears here. Tap the highlighted button to save it as a picture.',
+    'tut.tab.mysal.done.title': 'Before the week is closed',
+    'tut.tab.mysal.done.text': 'Until the owner closes the week, you will see a note that your pay is still in progress. Check back after the week ends.',
     'tut.tab.suppliers.pick.title': 'Tap a supplier',
     'tut.tab.suppliers.pick.text': 'See how much each supplier owes you this week. Tap one to open their statement.',
     'tut.tab.suppliers.receipt.title': 'Their statement',
@@ -115,6 +125,16 @@
     'tut.tab.salary.done.title': 'Iyan ang Salary',
     'tut.tab.salary.done.text': 'Isinasara ng Tapusin ang linggo at sine-save ng download button ang buod. Napaaga ang pagsara? Gamitin ang Reopen button sa linggong iyon para i-unlock.',
     'tut.tab.salary.saved': 'Na-save sa downloads',
+    'tut.tab.myfin.pick.title': 'Pumili ng linggo',
+    'tut.tab.myfin.pick.text': 'Pindutin ang naka-highlight na arrow sa tabi ng isang linggo para makita ang kinita mo sa linggong iyon.',
+    'tut.tab.myfin.detail.title': 'Ang kinita mo',
+    'tut.tab.myfin.detail.text': 'Dito makikita ang mga tinahi mo at ang sahod para sa mga ito. Puwede ka ring pumili ng isang araw.',
+    'tut.tab.mysal.total.title': 'Ang sahod mo ngayong linggo',
+    'tut.tab.mysal.total.text': 'Ito ang kinita mo na ngayong linggo. Tumataas ito tuwing nagtatala ka ng trabaho.',
+    'tut.tab.mysal.slip.title': 'Ang payslip mo',
+    'tut.tab.mysal.slip.text': 'Kapag isinara na ng may-ari ang linggo, lalabas dito ang payslip mo. Pindutin ang naka-highlight na button para i-save ito bilang larawan.',
+    'tut.tab.mysal.done.title': 'Bago isara ang linggo',
+    'tut.tab.mysal.done.text': 'Hangga’t hindi pa isinasara ng may-ari ang linggo, may makikita kang paalala na hindi pa tapos ang sahod mo. Bumalik pagkatapos ng linggo.',
     'tut.tab.suppliers.pick.title': 'Pumili ng supplier',
     'tut.tab.suppliers.pick.text': 'Tingnan kung magkano ang utang ng bawat supplier ngayong linggo. Pindutin ang isa para buksan ang statement.',
     'tut.tab.suppliers.receipt.title': 'Ang statement nila',
@@ -192,7 +212,7 @@
       tabStep({sel: '#receipt-dlg', keepDlg: true}, 'salary.receipt'),
       tabStep({sel: '#main .fin-bar [data-act="fin-open"]', pad: 10, pulse: true, wait: name => name === 'fin-open'}, 'salary.finalize'),
       tabStep({sel: '#fin-dlg', keepDlg: true, wait: name => name === 'fin-done'}, 'salary.sheet'),
-      tabStep({sel: '#main [data-act="sum"]', pad: 10, pulse: true, wait: () => false}, 'salary.download'),   // advances itself when the download animation ends
+      tabStep({sel: '#main [data-act="sum"]', pad: 10, pulse: true, wait: () => false, download: true, file: 'Tally-salary-report.png'}, 'salary.download'),   // advances itself when the download animation ends
       tabStep({center: true}, 'salary.done')
     ],
     suppliers: [
@@ -205,7 +225,18 @@
       tabStep({sel: () => { const b = document.querySelector('#main [data-act="rate-add"]'); return b && b.closest('.setup-section'); }}, 'setup.rates')
     ]
   };
-  const TAB_ALWAYS_DEMO = { setup: true, sewers: true };   // lessons that need demo data even when the account has real entries
+  const TAB_ALWAYS_DEMO = { finance: true, sewers: true, suppliers: true, setup: true, 'my-finance': true, 'my-salary': true };   // always demo: predictable data, and a lesson can never change real work
+  const TAB_ROLE = { finance: 'owner', sewers: 'owner', suppliers: 'owner', setup: 'owner', 'my-finance': 'sewer', 'my-salary': 'sewer' };
+  // lessons for the sewer's own tabs
+  TAB_SETS['my-finance'] = [
+    tabStep({sel: weekTarget, pad: 12, pulse: true, wait: name => name === 'select'}, 'myfin.pick'),
+    tabStep({sel: '#detail'}, 'myfin.detail')
+  ];
+  TAB_SETS['my-salary'] = [
+    tabStep({sel: '#main .tot-v', pad: 10}, 'mysal.total'),
+    tabStep({sel: '#main [data-act="slip"]', pad: 10, pulse: true, wait: () => false, download: true, preview: 'slip', file: 'Tally-payslip.png'}, 'mysal.slip'),
+    tabStep({center: true}, 'mysal.done')
+  ];   // lessons that need demo data even when the account has real entries
   const PREFIX = { owner: 'tut.owner.', sewer: 'tut.sewer.', practice: 'tut.p.', quick: 'tut.quick.', tab: 'tut.tab.' };
   const FLAG = { main: 'tally.tutorial.done:' };
   const quickValues = {};
@@ -307,7 +338,10 @@
     await wait(step.center ? 40 : 220);
     if (my !== token || !ui) return;
     if (!step.center && !visible(typeof step.sel === 'function' ? step.sel() : document.querySelector(step.sel))) { if (type === 'tab' && i === 0) { finish(false, true); return; } go(i + 1); return; }  // target not on screen: skip (a tab lesson that cannot start is retried next visit)
-    if (type === 'tab' && !step.center) { const tg = typeof step.sel === 'function' ? step.sel() : document.querySelector(step.sel); if (tg && !tg.closest('dialog')) tg.scrollIntoView({block: 'nearest'}); }   // bring the target on screen
+    if (type === 'tab' && !step.center) { const tg = typeof step.sel === 'function' ? step.sel() : document.querySelector(step.sel); if (tg && !tg.closest('dialog')) {
+      if (tg.getBoundingClientRect().height > window.innerHeight * 0.5) { tg.scrollIntoView({block: 'start'}); window.scrollBy(0, -Math.round(window.innerHeight * 0.42)); }
+      else tg.scrollIntoView({block: 'nearest'});
+    } }   // bring the target on screen
     renderStep();
     const nb = ui.querySelector('.tut-next');
     if (!nb.hidden) nb.focus({ preventScroll: true });
@@ -416,7 +450,13 @@
   function startTab(view) {
     const D = window.TallyDemo;
     tabView = view;
-    if (D && !D.active() && (TAB_ALWAYS_DEMO[view] || !D.hasEntries())) { D.enter(); enteredDemo = true; if (view === 'setup') D.dropRate(); }   // empty account: borrow the demo data for the lesson
+    if (D && !D.active() && (TAB_ALWAYS_DEMO[view] || !D.hasEntries())) {   // empty account (or a lesson that really changes things): borrow the demo data
+      enteredDemo = true;
+      if (role === 'sewer') D.enterSewer(view); else D.enter();
+      if (view === 'setup') D.dropRate();
+      if (view === 'my-salary') D.prepareSlip();
+      if (view === 'finance' || view === 'my-finance') D.prepareMonth();
+    }
     type = 'tab'; offset = 0;
     steps = TAB_SETS[view];
     build();
@@ -424,7 +464,7 @@
   }
   // Called by app.js after every render: opens that tab's lesson the first time an owner visits it.
   function visit(view) {
-    if (ui || visitTimer || !userId || role !== 'owner' || !TAB_SETS[view]) return;
+    if (ui || visitTimer || !userId || TAB_ROLE[view] !== role || !TAB_SETS[view]) return;
     if (!store.get(FLAG.main + userId) || store.get(TABFLAG + view + ':' + userId)) return;
     visitTimer = setTimeout(() => {
       visitTimer = null;
@@ -438,10 +478,9 @@
   async function playDownload() {
     if (playing) return;
     playing = true;
-    const my = token, D = window.TallyDemo;
-    const btn = document.querySelector('#main [data-act="sum"]');
-    let src = null; try { src = D && D.summaryPreview ? await D.summaryPreview() : null; } catch (e) { /* use the plain paper below */ }
-    if (my !== token || !ui || !btn) { playing = false; return; }
+    const my = token, D = window.TallyDemo, step0 = steps[idx] || {};
+    let src = null; try { const pv = D && (step0.preview === 'slip' ? D.slipPreview : D.summaryPreview); src = pv ? await pv() : null; } catch (e) { /* use the plain paper below */ }
+    if (my !== token || !ui) { playing = false; return; }
     const vw = window.innerWidth, vh = window.innerHeight, W = 170, H = 230;
     const Z = '2147483600';
     const card = document.createElement('div');
@@ -462,7 +501,7 @@
     card.remove();
     // a small "browser download" chip drops into the top-right corner, then turns into a tick
     const chip = document.createElement('div'), icon = document.createElement('span'), label = document.createElement('span');
-    icon.textContent = '↓'; label.textContent = 'Tally-salary-report.png';
+    icon.textContent = '↓'; label.textContent = step0.file || 'Tally-salary-report.png';
     icon.style.cssText = 'width:26px;height:26px;border-radius:50%;background:#fff;color:#111;display:grid;place-items:center;font:700 15px "DM Sans",sans-serif';
     chip.style.cssText = 'position:fixed;pointer-events:none;z-index:' + Z + ';right:10px;top:calc(env(safe-area-inset-top, 0px) + 10px);display:flex;align-items:center;gap:8px;background:#111;color:#fff;padding:7px 14px 7px 7px;border-radius:999px;font:600 14px "DM Sans",sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:calc(100vw - 20px)';
     chip.append(icon, label);
@@ -479,7 +518,7 @@
   function interceptDownload() {
     if (!ui || type !== 'tab') return false;
     const st = steps[idx];
-    if (!st || st.k !== 'salary.download') return false;
+    if (!st || !st.download) return false;
     playDownload();
     return true;
   }
